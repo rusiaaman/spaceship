@@ -1,0 +1,16 @@
+export const GAME_CONSTANTS = {
+  ACCELERATION: 50,
+  MAX_SPEED: 100,
+  BOOST_MULTIPLIER: 2,
+  BRAKE_FORCE: 0.8,
+  ROTATION_SPEED: 0.02,
+  STAR_COUNT: 5000,
+  STAR_SPEED_BASE: 0.5,
+  STAR_SPREAD: 500,
+  
+  // Racing Constants
+  RACE_DISTANCE: 1000, // Z-coordinate distance to the finish disk
+  FINISH_DISK_RADIUS: 50,
+  AI_SPEED_MULTIPLIER: 0.9,
+  AI_COUNT: 3,
+} as const
