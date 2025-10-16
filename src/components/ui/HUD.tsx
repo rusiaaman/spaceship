@@ -1,6 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import styled from '@emotion/styled'
 import { useGameStore } from '@/store/gameStore'
+import { Confetti } from './Confetti'
+import { Leaderboard } from './Leaderboard'
 
 const HUDContainer = styled.div`
   position: fixed;
@@ -47,39 +49,206 @@ const CountdownOverlay = styled.div`
   }
 `;
 
-const FinishMessage = styled.div`
+const FinishOverlay = styled.div`
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  text-align: center;
-  font-size: 60px;
-  font-weight: bold;
-  color: var(--hud-cyan);
-  text-shadow: 0 0 30px var(--glow-blue);
-  line-height: 1.2;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at center, 
+    rgba(0, 212, 255, 0.15) 0%, 
+    rgba(0, 0, 0, 0.8) 50%,
+    rgba(0, 0, 0, 0.95) 100%
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
   pointer-events: all;
+  animation: fadeIn 0.5s ease-out;
+  
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
 `;
 
-const Button = styled.button`
-  padding: 10px 30px;
+const FinishMessage = styled.div`
+  text-align: center;
+  animation: slideUp 0.8s ease-out;
+  
+  @keyframes slideUp {
+    from { 
+      opacity: 0;
+      transform: translateY(50px);
+    }
+    to { 
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+`;
+
+const MissionTitle = styled.div`
+  font-size: 80px;
+  font-weight: 900;
+  color: var(--hud-cyan);
+  text-shadow: 
+    0 0 20px var(--glow-blue),
+    0 0 40px var(--glow-blue),
+    0 0 60px var(--glow-blue);
+  letter-spacing: 8px;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+  animation: glow 2s ease-in-out infinite alternate;
+  
+  @keyframes glow {
+    from { 
+      text-shadow: 
+        0 0 20px var(--glow-blue),
+        0 0 40px var(--glow-blue),
+        0 0 60px var(--glow-blue);
+    }
+    to { 
+      text-shadow: 
+        0 0 30px var(--glow-blue),
+        0 0 60px var(--glow-blue),
+        0 0 90px var(--glow-blue),
+        0 0 120px rgba(0, 212, 255, 0.5);
+    }
+  }
+`;
+
+const TimeDisplay = styled.div`
+  font-size: 48px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 30px 0;
+  padding: 20px 40px;
+  background: rgba(0, 212, 255, 0.1);
+  border: 2px solid var(--hud-cyan);
+  border-radius: 12px;
+  display: inline-block;
+  box-shadow: 
+    0 0 20px rgba(0, 212, 255, 0.3),
+    inset 0 0 20px rgba(0, 212, 255, 0.1);
+  animation: pulse 1.5s ease-in-out infinite;
+  
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+`;
+
+const TimeLabel = styled.span`
+  font-size: 24px;
+  color: var(--hud-cyan);
+  opacity: 0.8;
+  margin-right: 15px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+`;
+
+const StatsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 30px;
+  margin: 40px 0;
+  max-width: 600px;
+`;
+
+const StatCard = styled.div`
+  background: rgba(0, 212, 255, 0.05);
+  border: 1px solid rgba(0, 212, 255, 0.3);
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  animation: fadeInScale 0.6s ease-out backwards;
+  animation-delay: calc(var(--index) * 0.1s);
+  
+  @keyframes fadeInScale {
+    from {
+      opacity: 0;
+      transform: scale(0.8);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+`;
+
+const StatLabel = styled.div`
+  font-size: 14px;
+  color: var(--hud-cyan);
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+`;
+
+const StatValue = styled.div`
+  font-size: 32px;
+  font-weight: bold;
+  color: #ffffff;
+  text-shadow: 0 0 10px var(--glow-blue);
+`;
+
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  margin-top: 50px;
+  animation: fadeIn 1s ease-out 0.8s backwards;
+`;
+
+const Button = styled.button<{ variant?: 'primary' | 'secondary' }>`
+  padding: 15px 40px;
   font-size: 20px;
   font-family: 'Orbitron', monospace;
-  color: var(--hud-cyan);
-  background: transparent;
+  color: ${props => props.variant === 'primary' ? '#000000' : 'var(--hud-cyan)'};
+  background: ${props => props.variant === 'primary' ? 'var(--hud-cyan)' : 'transparent'};
   border: 2px solid var(--hud-cyan);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.3s ease;
   text-transform: uppercase;
   letter-spacing: 2px;
-  box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+  font-weight: 600;
+  box-shadow: ${props => props.variant === 'primary' 
+    ? '0 0 30px rgba(0, 212, 255, 0.6)' 
+    : '0 0 10px rgba(0, 212, 255, 0.3)'};
+  position: relative;
+  overflow: hidden;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background: ${props => props.variant === 'primary' 
+      ? 'rgba(255, 255, 255, 0.3)' 
+      : 'rgba(0, 212, 255, 0.3)'};
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: width 0.6s ease, height 0.6s ease;
+  }
   
   &:hover {
-    background: var(--hud-cyan);
+    background: ${props => props.variant === 'primary' ? '#ffffff' : 'var(--hud-cyan)'};
     color: #000000;
-    box-shadow: 0 0 20px var(--glow-blue);
-    transform: scale(1.05);
+    box-shadow: 0 0 40px var(--glow-blue);
+    transform: scale(1.05) translateY(-2px);
+    
+    &::before {
+      width: 300px;
+      height: 300px;
+    }
+  }
+  
+  &:active {
+    transform: scale(0.98) translateY(0);
   }
 `;
 
@@ -155,9 +324,12 @@ const SpeedBar = styled.div`
 const SpeedFill = styled.div<{ speed: number }>`
   height: 100%;
   width: ${props => props.speed}%;
-  background: linear-gradient(90deg, var(--glow-blue), var(--hud-cyan));
-  box-shadow: 0 0 20px var(--glow-blue);
-  transition: width 0.1s ease-out;
+  background: linear-gradient(90deg, 
+    ${props => props.speed > 80 ? '#ff4444' : 'var(--glow-blue)'}, 
+    ${props => props.speed > 80 ? '#ff8844' : 'var(--hud-cyan)'}
+  );
+  box-shadow: 0 0 20px ${props => props.speed > 80 ? '#ff4444' : 'var(--glow-blue)'};
+  transition: width 0.05s ease-out, background 0.3s ease;
 `
 
 const Controls = styled.div`
@@ -170,10 +342,27 @@ const Controls = styled.div`
   line-height: 1.6;
 `
 
+const PointerLockHint = styled.div`
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 24px;
+  color: var(--hud-cyan);
+  text-shadow: 0 0 20px var(--glow-blue);
+  text-align: center;
+  pointer-events: none;
+  animation: fadeInOut 2s ease-in-out infinite;
+  
+  @keyframes fadeInOut {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+`
+
 export const HUD = () => {
   const speed = useGameStore((state) => state.speed)
   const maxSpeed = useGameStore((state) => state.maxSpeed)
-  const score = useGameStore((state) => state.score)
   const gameState = useGameStore((state) => state.gameState)
   const countdown = useGameStore((state) => state.countdown)
   const setCountdown = useGameStore((state) => state.setCountdown)
@@ -181,8 +370,21 @@ export const HUD = () => {
   const raceTime = useGameStore((state) => state.raceTime)
   const finishTime = useGameStore((state) => state.finishTime)
   const resetGame = useGameStore((state) => state.resetGame)
+  const distanceToFinish = useGameStore((state) => state.distanceToFinish)
+  const playerPosition = useGameStore((state) => state.playerPosition)
+  const [isPointerLocked, setIsPointerLocked] = useState(false)
   
   const speedPercent = (speed / maxSpeed) * 100
+
+  // Track pointer lock state
+  useEffect(() => {
+    const handlePointerLockChange = () => {
+      setIsPointerLocked(document.pointerLockElement === document.body)
+    }
+
+    document.addEventListener('pointerlockchange', handlePointerLockChange)
+    return () => document.removeEventListener('pointerlockchange', handlePointerLockChange)
+  }, [])
 
   // Countdown logic
   useEffect(() => {
@@ -212,16 +414,19 @@ export const HUD = () => {
 
   return (
     <HUDContainer>
+      <Leaderboard />
       <TopBar>
         <Stat>
           <Label>Speed</Label>
           <Value>{Math.round(speed)}</Value>
         </Stat>
         <Stat>
-          <Label>{gameState === 'playing' ? 'Time' : 'Score'}</Label>
-          <Value>
-            {gameState === 'playing' ? formatTime(raceTime) : score}
-          </Value>
+          <Label>Time</Label>
+          <Value>{formatTime(raceTime)}</Value>
+        </Stat>
+        <Stat>
+          <Label>Distance</Label>
+          <Value>{Math.round(distanceToFinish)}m</Value>
         </Stat>
       </TopBar>
 
@@ -233,32 +438,68 @@ export const HUD = () => {
 
       <Controls>
         WASD / Arrows - Move<br />
-        Q/E - Up/Down<br />
+        Mouse - Look Around<br />
+        Q/E - Pitch Up/Down<br />
         Shift - Boost<br />
         Space - Brake<br />
         ESC - Pause
       </Controls>
+
+      {gameState === 'playing' && !isPointerLocked && (
+        <PointerLockHint>
+          Click to capture mouse
+        </PointerLockHint>
+      )}
       
       {gameState === 'countdown' && (
         <CountdownOverlay>{countdownText}</CountdownOverlay>
       )}
       
       {gameState === 'finished' && finishTime !== null && (
-        <FinishMessage>
-          MISSION COMPLETE!
-          <br />
-          <span style={{ fontSize: '0.6em', fontWeight: 'normal' }}>Time: {formatTime(finishTime)}</span>
-          <br />
-          <Button 
-            onClick={resetGame} 
-            style={{ 
-              marginTop: '40px', 
-              pointerEvents: 'all' 
-            }}
-          >
-            RETRY
-          </Button>
-        </FinishMessage>
+        <>
+          <Confetti />
+          <FinishOverlay>
+          <FinishMessage>
+            <MissionTitle>MISSION COMPLETE!</MissionTitle>
+            
+            <TimeDisplay>
+              <TimeLabel>Final Time:</TimeLabel>
+              {formatTime(finishTime)}
+            </TimeDisplay>
+            
+            <StatsGrid>
+              <StatCard style={{ '--index': 0 } as React.CSSProperties}>
+                <StatLabel>Position</StatLabel>
+                <StatValue style={{ 
+                  color: playerPosition === 1 ? '#FFD700' : 
+                         playerPosition === 2 ? '#C0C0C0' : 
+                         playerPosition === 3 ? '#CD7F32' : '#ffffff'
+                }}>
+                  {playerPosition === 1 ? '🥇' : playerPosition === 2 ? '🥈' : playerPosition === 3 ? '🥉' : playerPosition}
+                  {playerPosition === 1 ? 'st' : playerPosition === 2 ? 'nd' : playerPosition === 3 ? 'rd' : 'th'}
+                </StatValue>
+              </StatCard>
+              <StatCard style={{ '--index': 1 } as React.CSSProperties}>
+                <StatLabel>Max Speed</StatLabel>
+                <StatValue>{Math.round(maxSpeed)}</StatValue>
+              </StatCard>
+              <StatCard style={{ '--index': 2 } as React.CSSProperties}>
+                <StatLabel>Avg Speed</StatLabel>
+                <StatValue>{Math.round(1000 / finishTime)}</StatValue>
+              </StatCard>
+            </StatsGrid>
+            
+            <ButtonGroup>
+              <Button variant="primary" onClick={resetGame}>
+                RETRY MISSION
+              </Button>
+              <Button variant="secondary" onClick={() => window.location.reload()}>
+                MAIN MENU
+              </Button>
+            </ButtonGroup>
+          </FinishMessage>
+        </FinishOverlay>
+        </>
       )}
     </HUDContainer>
   )

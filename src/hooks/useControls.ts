@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 
 interface Controls {
   forward: boolean
@@ -9,8 +9,8 @@ interface Controls {
   down: boolean
   boost: boolean
   brake: boolean
-  mouseX: number
-  mouseY: number
+  mouseDeltaX: number
+  mouseDeltaY: number
 }
 
 export const useControls = () => {
@@ -23,9 +23,33 @@ export const useControls = () => {
     down: false,
     boost: false,
     brake: false,
-    mouseX: 0,
-    mouseY: 0,
+    mouseDeltaX: 0,
+    mouseDeltaY: 0,
   })
+
+  const isPointerLocked = useRef(false)
+
+  useEffect(() => {
+    // Request pointer lock on first click
+    const handleClick = () => {
+      if (!isPointerLocked.current) {
+        document.body.requestPointerLock()
+      }
+    }
+
+    // Track pointer lock state
+    const handlePointerLockChange = () => {
+      isPointerLocked.current = document.pointerLockElement === document.body
+    }
+
+    document.addEventListener('click', handleClick)
+    document.addEventListener('pointerlockchange', handlePointerLockChange)
+
+    return () => {
+      document.removeEventListener('click', handleClick)
+      document.removeEventListener('pointerlockchange', handlePointerLockChange)
+    }
+  }, [])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -102,10 +126,18 @@ export const useControls = () => {
     }
 
     const handleMouseMove = (e: MouseEvent) => {
+      // Only process mouse movement when pointer is locked
+      if (!isPointerLocked.current) return
+
+      // Use movementX/Y which gives relative movement directly
+      const deltaX = e.movementX || 0
+      const deltaY = e.movementY || 0
+
+      // Update controls with delta values - don't reset immediately
       setControls((prev) => ({
         ...prev,
-        mouseX: (e.clientX / window.innerWidth) * 2 - 1,
-        mouseY: -(e.clientY / window.innerHeight) * 2 + 1,
+        mouseDeltaX: deltaX,
+        mouseDeltaY: deltaY,
       }))
     }
 
