@@ -1,15 +1,57 @@
-import { useRef } from 'react'
+import { useRef, useMemo } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameStore } from '@/store/gameStore'
 
 export const Cockpit = () => {
   const frameRef = useRef<THREE.Group>(null)
-  const speed = useGameStore((state) => state.speed)
   const { camera } = useThree()
+  
+  // Only render cockpit in first-person view
+  const cameraView = useGameStore(state => state.cameraView)
+  
+  // Create materials once and reuse
+  const frameMaterial = useMemo(() => new THREE.MeshStandardMaterial({
+    color: '#1e90ff',
+    emissive: '#00bfff',
+    emissiveIntensity: 0.5,
+    metalness: 0.8,
+    roughness: 0.2
+  }), [])
+  
+  const hudRingMaterial = useMemo(() => new THREE.MeshStandardMaterial({
+    color: '#00ffff',
+    emissive: '#00ffff',
+    emissiveIntensity: 1.5,
+    metalness: 0.9,
+    roughness: 0.1
+  }), [])
+  
+  const crosshairMaterial = useMemo(() => new THREE.MeshStandardMaterial({
+    color: '#00ffff',
+    emissive: '#00ffff',
+    emissiveIntensity: 1.5,
+    transparent: true,
+    opacity: 0.6
+  }), [])
+  
+  const dotMaterial = useMemo(() => new THREE.MeshStandardMaterial({
+    color: '#00ffff',
+    emissive: '#00ffff',
+    emissiveIntensity: 2
+  }), [])
+  
+  const panelMaterial = useMemo(() => new THREE.MeshStandardMaterial({
+    color: '#00bfff',
+    emissive: '#00bfff',
+    emissiveIntensity: 1.2
+  }), [])
 
   useFrame((state) => {
-    if (!frameRef.current) return
+    if (!frameRef.current || cameraView !== 'first-person') return
+    
+    // Get speed directly in useFrame to avoid subscription
+    const speed = useGameStore.getState().speed
     
     // Attach cockpit to camera
     frameRef.current.position.copy(camera.position)
@@ -23,139 +65,77 @@ export const Cockpit = () => {
     frameRef.current.position.x += Math.cos(state.clock.elapsedTime * 8) * vibration
   })
 
+  if (cameraView !== 'first-person') return null
+
   return (
-    <group ref={frameRef}>
+    <group ref={frameRef} scale={1.5}>
       {/* Bottom horizontal bar */}
       <mesh position={[0, 0, 0]}>
         <boxGeometry args={[4, 0.08, 0.08]} />
-        <meshStandardMaterial
-          color="#1e90ff"
-          emissive="#00bfff"
-          emissiveIntensity={0.5}
-          metalness={0.8}
-          roughness={0.2}
-        />
+        <primitive object={frameMaterial} attach="material" />
       </mesh>
 
       {/* Left angled frame */}
       <mesh position={[-1.8, 0.8, 0]} rotation={[0, 0, Math.PI / 8]}>
         <boxGeometry args={[0.08, 1.8, 0.08]} />
-        <meshStandardMaterial
-          color="#1e90ff"
-          emissive="#00bfff"
-          emissiveIntensity={0.5}
-          metalness={0.8}
-          roughness={0.2}
-        />
+        <primitive object={frameMaterial} attach="material" />
       </mesh>
 
       {/* Right angled frame */}
       <mesh position={[1.8, 0.8, 0]} rotation={[0, 0, -Math.PI / 8]}>
         <boxGeometry args={[0.08, 1.8, 0.08]} />
-        <meshStandardMaterial
-          color="#1e90ff"
-          emissive="#00bfff"
-          emissiveIntensity={0.5}
-          metalness={0.8}
-          roughness={0.2}
-        />
+        <primitive object={frameMaterial} attach="material" />
       </mesh>
 
       {/* Top left connector */}
       <mesh position={[-1.3, 1.5, 0]} rotation={[0, 0, Math.PI / 3]}>
         <boxGeometry args={[0.6, 0.08, 0.08]} />
-        <meshStandardMaterial
-          color="#1e90ff"
-          emissive="#00bfff"
-          emissiveIntensity={0.5}
-          metalness={0.8}
-          roughness={0.2}
-        />
+        <primitive object={frameMaterial} attach="material" />
       </mesh>
 
       {/* Top right connector */}
       <mesh position={[1.3, 1.5, 0]} rotation={[0, 0, -Math.PI / 3]}>
         <boxGeometry args={[0.6, 0.08, 0.08]} />
-        <meshStandardMaterial
-          color="#1e90ff"
-          emissive="#00bfff"
-          emissiveIntensity={0.5}
-          metalness={0.8}
-          roughness={0.2}
-        />
+        <primitive object={frameMaterial} attach="material" />
       </mesh>
 
       {/* Central HUD ring */}
       <mesh position={[0, 0.7, 0]}>
         <torusGeometry args={[0.4, 0.025, 16, 32]} />
-        <meshStandardMaterial
-          color="#00ffff"
-          emissive="#00ffff"
-          emissiveIntensity={1.5}
-          metalness={0.9}
-          roughness={0.1}
-        />
+        <primitive object={hudRingMaterial} attach="material" />
       </mesh>
 
       {/* Central crosshair dot */}
       <mesh position={[0, 0.7, 0.01]}>
         <circleGeometry args={[0.06, 32]} />
-        <meshStandardMaterial
-          color="#00ffff"
-          emissive="#00ffff"
-          emissiveIntensity={2}
-        />
+        <primitive object={dotMaterial} attach="material" />
       </mesh>
 
       {/* Horizontal crosshair line */}
       <mesh position={[0, 0.7, 0.01]}>
         <boxGeometry args={[0.8, 0.02, 0.01]} />
-        <meshStandardMaterial
-          color="#00ffff"
-          emissive="#00ffff"
-          emissiveIntensity={1.5}
-          transparent
-          opacity={0.6}
-        />
+        <primitive object={crosshairMaterial} attach="material" />
       </mesh>
 
       {/* Vertical crosshair line */}
       <mesh position={[0, 0.7, 0.01]}>
         <boxGeometry args={[0.02, 0.8, 0.01]} />
-        <meshStandardMaterial
-          color="#00ffff"
-          emissive="#00ffff"
-          emissiveIntensity={1.5}
-          transparent
-          opacity={0.6}
-        />
+        <primitive object={crosshairMaterial} attach="material" />
       </mesh>
 
       {/* Left panel display */}
       <group position={[-1.5, 0.4, 0]}>
         <mesh>
           <boxGeometry args={[0.3, 0.15, 0.02]} />
-          <meshStandardMaterial
-            color="#00bfff"
-            emissive="#00bfff"
-            emissiveIntensity={1.2}
-          />
+          <primitive object={panelMaterial} attach="material" />
         </mesh>
         <mesh position={[0, -0.2, 0]}>
           <boxGeometry args={[0.3, 0.15, 0.02]} />
-          <meshStandardMaterial
-            color="#00bfff"
-            emissive="#00bfff"
-            emissiveIntensity={1.2}
-          />
+          <primitive object={panelMaterial} attach="material" />
         </mesh>
         <mesh position={[0, -0.4, 0]}>
           <boxGeometry args={[0.3, 0.15, 0.02]} />
-          <meshStandardMaterial
-            color="#00bfff"
-            emissive="#00bfff"
-            emissiveIntensity={1.2}
-          />
+          <primitive object={panelMaterial} attach="material" />
         </mesh>
       </group>
 
@@ -163,27 +143,15 @@ export const Cockpit = () => {
       <group position={[1.5, 0.4, 0]}>
         <mesh>
           <boxGeometry args={[0.3, 0.15, 0.02]} />
-          <meshStandardMaterial
-            color="#00bfff"
-            emissive="#00bfff"
-            emissiveIntensity={1.2}
-          />
+          <primitive object={panelMaterial} attach="material" />
         </mesh>
         <mesh position={[0, -0.2, 0]}>
           <boxGeometry args={[0.3, 0.15, 0.02]} />
-          <meshStandardMaterial
-            color="#00bfff"
-            emissive="#00bfff"
-            emissiveIntensity={1.2}
-          />
+          <primitive object={panelMaterial} attach="material" />
         </mesh>
         <mesh position={[0, -0.4, 0]}>
           <boxGeometry args={[0.3, 0.15, 0.02]} />
-          <meshStandardMaterial
-            color="#00bfff"
-            emissive="#00bfff"
-            emissiveIntensity={1.2}
-          />
+          <primitive object={panelMaterial} attach="material" />
         </mesh>
       </group>
 

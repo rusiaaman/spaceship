@@ -4,14 +4,18 @@ import * as THREE from 'three'
 import { useControls } from '@/hooks/useControls'
 import { useGameStore } from '@/store/gameStore'
 import { GAME_CONSTANTS } from '@/utils/constants'
+import { profiler } from '@/utils/profiler'
 
 export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
   const controls = useControls()
   const velocity = useRef(new THREE.Vector3(0, 0, 0)).current
+  const lastShootStateRef = useRef(false)
+  const lastToggleCameraStateRef = useRef(false)
 
   // Only subscribe to state that affects component logic outside of useFrame
-  const gameState = useGameStore((state) => state.gameState);
-  const isRaceStarted = useGameStore((state) => state.isRaceStarted);
+  const gameState = useGameStore(state => state.gameState);
+  const isRaceStarted = useGameStore(state => state.isRaceStarted);
+  const cameraView = useGameStore(state => state.cameraView);
 
   const checkFinishCollision = (position: THREE.Vector3) => {
     const finishZ = -GAME_CONSTANTS.RACE_DISTANCE;
@@ -28,42 +32,120 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
     }
   }
 
+  // Use ref to track last collected booster to prevent multiple collections
+  const lastCollectedBoosterRef = useRef<number>(-1)
+  const collectionCooldownRef = useRef<number>(0)
+  
+  const checkBoosterCollision = (position: THREE.Vector3, currentTime: number) => {
+    // Cooldown to prevent rapid re-collection
+    if (currentTime - collectionCooldownRef.current < 0.5) return
+    
+    const { BOOSTER_COUNT, BOOSTER_SPACING, BOOSTER_RADIUS, BOOSTER_DURATION } = GAME_CONSTANTS
+    const { collectedBoosters, collectBooster, activateBoost } = useGameStore.getState()
+    
+    for (let i = 0; i < BOOSTER_COUNT; i++) {
+      if (collectedBoosters.has(i) || lastCollectedBoosterRef.current === i) continue
+      
+      const zPosition = -(i + 1) * BOOSTER_SPACING - 100
+      const xPositions = [-25, 0, 25]
+      const xPosition = xPositions[i % 3]
+      
+      const distance = Math.sqrt(
+        Math.pow(position.x - xPosition, 2) + 
+        Math.pow(position.z - zPosition, 2)
+      )
+      
+      if (distance < BOOSTER_RADIUS) {
+        lastCollectedBoosterRef.current = i
+        collectionCooldownRef.current = currentTime
+        
+        // Batch the state updates
+        collectBooster(i)
+        activateBoost(BOOSTER_DURATION)
+        break
+      }
+    }
+  }
+
   useFrame((state, delta) => {
+    profiler.start('SpaceshipController.frame')
+    
     if (!ref || !('current' in ref) || !ref.current) {
+      profiler.end('SpaceshipController.frame')
       return;
     }
     const spaceship = ref.current;
     
+    // Update player position for weapon system
+    if ((window as any).__weaponSystemRefs) {
+      (window as any).__weaponSystemRefs.playerPosition.copy(spaceship.position)
+    }
+    
     // Get frequently updated state and setters inside useFrame
-    const { speed, setRaceTime, setSpeed, setDistanceToFinish, aiStandings, setPlayerPosition } = useGameStore.getState();
+    const { speed, setRaceTime, setSpeed, setDistanceToFinish, aiStandings, setPlayerPosition, isBoosting, boostEndTime, deactivateBoost, raceTime, fireProjectile } = useGameStore.getState();
+
+    // Check if boost should end
+    if (isBoosting && raceTime >= boostEndTime) {
+      deactivateBoost()
+    }
 
     // Update Race Timer and Distance
     if (isRaceStarted && gameState === 'playing') {
-      setRaceTime((prev) => prev + delta);
+      setRaceTime((prev: number) => prev + delta);
       
       // Update distance to finish
       const finishZ = -GAME_CONSTANTS.RACE_DISTANCE;
       const distance = Math.max(0, Math.abs(spaceship.position.z - finishZ));
       setDistanceToFinish(distance);
       
-      // Calculate player position based on distance compared to AI
-      let position = 1;
-      aiStandings.forEach(ai => {
-        if (ai.distance < distance) {
-          position++;
-        }
-      });
-      setPlayerPosition(position);
+      // Calculate player position less frequently (every 10 frames)
+      if (Math.floor(raceTime * 60) % 10 === 0) {
+        let position = 1;
+        aiStandings.forEach((ai) => {
+          if (ai.distance < distance) {
+            position++;
+          }
+        });
+        setPlayerPosition(position);
+      }
     }
 
     // Only allow movement when playing (not during countdown or other states)
     if (gameState === 'playing') {
+        profiler.start('SpaceshipController.movement')
+        
+        // --- Camera Toggle ---
+        // Only toggle on the transition (edge trigger)
+        if (controls.toggleCamera && !lastToggleCameraStateRef.current) {
+          useGameStore.getState().toggleCameraView()
+        }
+        lastToggleCameraStateRef.current = controls.toggleCamera
+        
+        // --- Shooting ---
+        // Fire continuously while shoot button is held (allows burst shooting)
+        if (controls.shoot) {
+          profiler.start('SpaceshipController.shooting')
+          const direction = new THREE.Vector3()
+          spaceship.getWorldDirection(direction)
+          direction.negate() // Forward direction
+          
+          const spawnOffset = direction.clone().multiplyScalar(5)
+          const spawnPosition = spaceship.position.clone().add(spawnOffset)
+          
+          fireProjectile(spawnPosition, direction, true)
+          profiler.end('SpaceshipController.shooting')
+        }
+        lastShootStateRef.current = controls.shoot
         // --- Speed and Acceleration ---
+        profiler.start('SpaceshipController.speedCalc')
         let targetSpeed = speed;
         const acceleration = GAME_CONSTANTS.ACCELERATION * delta;
         
+        // Apply booster speed multiplier if active
+        const speedMultiplier = isBoosting ? GAME_CONSTANTS.BOOSTER_SPEED_MULTIPLIER : 1
+        
         if (controls.forward) {
-          targetSpeed += acceleration;
+          targetSpeed += acceleration * speedMultiplier;
           if (controls.boost) {
             targetSpeed += acceleration * GAME_CONSTANTS.BOOST_MULTIPLIER;
           }
@@ -78,6 +160,7 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
 
         targetSpeed = Math.max(0, Math.min(GAME_CONSTANTS.MAX_SPEED, targetSpeed));
         setSpeed(targetSpeed);
+        profiler.end('SpaceshipController.speedCalc')
 
         // --- Rotation ---
         const rotationSpeed = GAME_CONSTANTS.ROTATION_SPEED;
@@ -140,13 +223,27 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
         const targetHeight = 0;
         spaceship.position.y = THREE.MathUtils.lerp(spaceship.position.y, targetHeight, 0.1);
 
+        // Check for booster collision with current time
+        if (isRaceStarted) {
+          profiler.start('SpaceshipController.boosterCheck')
+          checkBoosterCollision(spaceship.position, raceTime);
+          profiler.end('SpaceshipController.boosterCheck')
+        }
+
         // Check for finish
         checkFinishCollision(spaceship.position);
+        
+        profiler.end('SpaceshipController.movement')
     }
 
     // --- Camera Follow ---
-    const idealOffset = new THREE.Vector3(0, 2, 5); // Camera behind and slightly above
+    // Different camera positions based on view mode
+    const idealOffset = cameraView === 'first-person' 
+      ? new THREE.Vector3(0, 2, 5)      // Close first-person view
+      : new THREE.Vector3(0, 8, 20);    // Wider third-person view
+    
     idealOffset.applyQuaternion(spaceship.quaternion);
+    
     const idealLookat = new THREE.Vector3(0, 0, -10);
     idealLookat.applyQuaternion(spaceship.quaternion);
     idealLookat.add(spaceship.position);
@@ -157,6 +254,8 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
     // Faster camera follow for more responsive controls
     state.camera.position.lerp(cameraPosition, 0.2);
     state.camera.lookAt(idealLookat);
+    
+    profiler.end('SpaceshipController.frame')
   })
 
   return null

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import styled from '@emotion/styled'
 import { useGameStore } from '@/store/gameStore'
 import { Confetti } from './Confetti'
@@ -88,7 +88,7 @@ const FinishMessage = styled.div`
   }
 `;
 
-const MissionTitle = styled.div`
+const RaceTitle = styled.div`
   font-size: 80px;
   font-weight: 900;
   color: var(--hud-cyan);
@@ -321,15 +321,143 @@ const SpeedBar = styled.div`
   box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
 `
 
-const SpeedFill = styled.div<{ speed: number }>`
+const SpeedFill = styled.div<{ speed: number; isBoosting: boolean }>`
   height: 100%;
   width: ${props => props.speed}%;
   background: linear-gradient(90deg, 
-    ${props => props.speed > 80 ? '#ff4444' : 'var(--glow-blue)'}, 
-    ${props => props.speed > 80 ? '#ff8844' : 'var(--hud-cyan)'}
+    ${props => props.isBoosting ? '#00ffff' : props.speed > 80 ? '#ff4444' : 'var(--glow-blue)'}, 
+    ${props => props.isBoosting ? '#00ff88' : props.speed > 80 ? '#ff8844' : 'var(--hud-cyan)'}
   );
-  box-shadow: 0 0 20px ${props => props.speed > 80 ? '#ff4444' : 'var(--glow-blue)'};
+  box-shadow: 0 0 20px ${props => props.isBoosting ? '#00ffff' : props.speed > 80 ? '#ff4444' : 'var(--glow-blue)'};
   transition: width 0.05s ease-out, background 0.3s ease;
+  animation: ${props => props.isBoosting ? 'boostPulse 0.5s ease-in-out infinite' : 'none'};
+  
+  @keyframes boostPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+`
+
+const HealthBarContainer = styled.div`
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  width: 250px;
+`;
+
+const HealthBarLabel = styled.div`
+  font-size: 12px;
+  color: var(--hud-cyan);
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+`;
+
+const HealthBarTrack = styled.div`
+  width: 100%;
+  height: 20px;
+  background: rgba(0, 212, 255, 0.1);
+  border: 1px solid var(--hud-cyan);
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+`;
+
+const HealthBarFill = styled.div<{ health: number }>`
+  height: 100%;
+  width: ${props => props.health}%;
+  background: linear-gradient(90deg, 
+    ${props => props.health > 60 ? '#00ff88' : props.health > 30 ? '#ffaa00' : '#ff4444'},
+    ${props => props.health > 60 ? '#00ffff' : props.health > 30 ? '#ffdd00' : '#ff8844'}
+  );
+  box-shadow: 0 0 10px ${props => props.health > 60 ? '#00ff88' : props.health > 30 ? '#ffaa00' : '#ff4444'};
+  transition: width 0.3s ease, background 0.3s ease;
+`;
+
+const HealthValue = styled.div`
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 12px;
+  font-weight: bold;
+  color: #ffffff;
+  text-shadow: 0 0 5px #000000;
+  pointer-events: none;
+`;
+
+const DamageVignette = styled.div<{ active: boolean }>`
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background: radial-gradient(circle at center, transparent 40%, rgba(255, 0, 0, 0.4) 100%);
+  opacity: ${props => props.active ? 1 : 0};
+  transition: opacity 0.2s ease;
+  animation: ${props => props.active ? 'damagePulse 0.3s ease-out' : 'none'};
+  
+  @keyframes damagePulse {
+    0% { opacity: 0; }
+    50% { opacity: 1; }
+    100% { opacity: 0.5; }
+  }
+`;
+
+const ShootCooldown = styled.div<{ progress: number }>`
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: 3px solid rgba(0, 212, 255, 0.3);
+  pointer-events: none;
+  
+  &::after {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: -3px;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: 3px solid var(--hud-cyan);
+    border-right-color: transparent;
+    border-bottom-color: transparent;
+    transform: rotate(${props => props.progress * 360}deg);
+    opacity: ${props => props.progress < 1 ? 1 : 0};
+    transition: opacity 0.1s ease;
+    box-shadow: 0 0 10px var(--glow-blue);
+  }
+`;
+
+const BoostIndicator = styled.div<{ active: boolean }>`
+  position: absolute;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 16px;
+  font-weight: bold;
+  color: #00ffff;
+  text-shadow: 0 0 20px #00ffff;
+  opacity: ${props => props.active ? 1 : 0};
+  transition: opacity 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  animation: ${props => props.active ? 'boostGlow 0.5s ease-in-out infinite' : 'none'};
+  
+  @keyframes boostGlow {
+    0%, 100% { 
+      text-shadow: 0 0 20px #00ffff, 0 0 30px #00ffff;
+    }
+    50% { 
+      text-shadow: 0 0 30px #00ffff, 0 0 50px #00ffff, 0 0 70px #00ffff;
+    }
+  }
 `
 
 const Controls = styled.div`
@@ -340,6 +468,18 @@ const Controls = styled.div`
   opacity: 0.6;
   text-align: right;
   line-height: 1.6;
+`
+
+const CameraMode = styled.div`
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  font-size: 14px;
+  color: var(--hud-cyan);
+  text-shadow: 0 0 10px var(--glow-blue);
+  opacity: 0.8;
+  text-transform: uppercase;
+  letter-spacing: 2px;
 `
 
 const PointerLockHint = styled.div`
@@ -361,20 +501,41 @@ const PointerLockHint = styled.div`
 `
 
 export const HUD = () => {
-  const speed = useGameStore((state) => state.speed)
-  const maxSpeed = useGameStore((state) => state.maxSpeed)
-  const gameState = useGameStore((state) => state.gameState)
-  const countdown = useGameStore((state) => state.countdown)
-  const setCountdown = useGameStore((state) => state.setCountdown)
-  const startRace = useGameStore((state) => state.startRace)
-  const raceTime = useGameStore((state) => state.raceTime)
-  const finishTime = useGameStore((state) => state.finishTime)
-  const resetGame = useGameStore((state) => state.resetGame)
-  const distanceToFinish = useGameStore((state) => state.distanceToFinish)
-  const playerPosition = useGameStore((state) => state.playerPosition)
+  // Optimize subscriptions - only subscribe to what changes frequently
+  const speed = useGameStore(state => state.speed)
+  const gameState = useGameStore(state => state.gameState)
+  const countdown = useGameStore(state => state.countdown)
+  const isBoosting = useGameStore(state => state.isBoosting)
+  const playerHealth = useGameStore(state => state.playerHealth)
+  const playerMaxHealth = useGameStore(state => state.playerMaxHealth)
+  const lastShotTime = useGameStore(state => state.lastShotTime)
+  const raceTime = useGameStore(state => state.raceTime)
+  const finishTime = useGameStore(state => state.finishTime)
+  const distanceToFinish = useGameStore(state => state.distanceToFinish)
+  const playerPosition = useGameStore(state => state.playerPosition)
+  const cameraView = useGameStore(state => state.cameraView)
   const [isPointerLocked, setIsPointerLocked] = useState(false)
+  const [showDamageFlash, setShowDamageFlash] = useState(false)
+  const prevHealthRef = useRef(playerHealth)
+  
+  // Get static or infrequent values without subscription
+  const maxSpeed = useGameStore.getState().maxSpeed
+  const setCountdown = useGameStore.getState().setCountdown
+  const startRace = useGameStore.getState().startRace
+  const resetGame = useGameStore.getState().resetGame
   
   const speedPercent = (speed / maxSpeed) * 100
+  const healthPercent = (playerHealth / playerMaxHealth) * 100
+  const shootCooldownProgress = Math.min(1, (raceTime - lastShotTime) / 0.25)
+
+  // Show damage flash when health decreases
+  useEffect(() => {
+    if (playerHealth < prevHealthRef.current) {
+      setShowDamageFlash(true)
+      setTimeout(() => setShowDamageFlash(false), 300)
+    }
+    prevHealthRef.current = playerHealth
+  }, [playerHealth])
 
   // Track pointer lock state
   useEffect(() => {
@@ -415,6 +576,21 @@ export const HUD = () => {
   return (
     <HUDContainer>
       <Leaderboard />
+      
+      {/* Health Bar */}
+      {(gameState === 'playing' || gameState === 'countdown') && (
+        <HealthBarContainer>
+          <HealthBarLabel>Hull Integrity</HealthBarLabel>
+          <HealthBarTrack>
+            <HealthBarFill health={healthPercent} />
+            <HealthValue>{Math.round(playerHealth)}</HealthValue>
+          </HealthBarTrack>
+        </HealthBarContainer>
+      )}
+      
+      {/* Damage Vignette */}
+      <DamageVignette active={showDamageFlash || playerHealth < 30} />
+      
       <TopBar>
         <Stat>
           <Label>Speed</Label>
@@ -431,17 +607,32 @@ export const HUD = () => {
       </TopBar>
 
       <Crosshair />
+      
+      {/* Shoot Cooldown Indicator */}
+      {gameState === 'playing' && (
+        <ShootCooldown progress={shootCooldownProgress} />
+      )}
+
+      <BoostIndicator active={isBoosting}>
+        ⚡ BOOST ACTIVE ⚡
+      </BoostIndicator>
 
       <SpeedBar>
-        <SpeedFill speed={speedPercent} />
+        <SpeedFill speed={speedPercent} isBoosting={isBoosting} />
       </SpeedBar>
+
+      <CameraMode>
+        {cameraView === 'first-person' ? '📷 First Person' : '📷 Third Person'}
+      </CameraMode>
 
       <Controls>
         WASD / Arrows - Move<br />
         Mouse - Look Around<br />
+        Left Click - Shoot<br />
         Q/E - Pitch Up/Down<br />
         Shift - Boost<br />
         Space - Brake<br />
+        C - Toggle Camera<br />
         ESC - Pause
       </Controls>
 
@@ -460,7 +651,7 @@ export const HUD = () => {
           <Confetti />
           <FinishOverlay>
           <FinishMessage>
-            <MissionTitle>MISSION COMPLETE!</MissionTitle>
+            <RaceTitle>RACE COMPLETE!</RaceTitle>
             
             <TimeDisplay>
               <TimeLabel>Final Time:</TimeLabel>
@@ -491,7 +682,7 @@ export const HUD = () => {
             
             <ButtonGroup>
               <Button variant="primary" onClick={resetGame}>
-                RETRY MISSION
+                RETRY RACE
               </Button>
               <Button variant="secondary" onClick={() => window.location.reload()}>
                 MAIN MENU

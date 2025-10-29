@@ -16,10 +16,13 @@
     "@react-three/fiber": "^9.4.0",
     "@react-three/postprocessing": "^3.0.4",
     "@tailwindcss/vite": "^4.1.14",
+    "@types/yuka": "^0.7.4",
+    "flatbush": "^4.5.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "tailwindcss": "^4.1.14",
     "three": "^0.180.0",
+    "yuka": "^0.7.8",
     "zustand": "^5.0.8"
   },
   "devDependencies": {

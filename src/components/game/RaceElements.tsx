@@ -5,6 +5,7 @@ import { GAME_CONSTANTS } from '@/utils/constants';
 import { Cylinder, Torus, Box } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '@/store/gameStore';
+import { profiler } from '@/utils/profiler';
 
 interface AIShipProps {
   position: [number, number, number];
@@ -14,39 +15,28 @@ interface AIShipProps {
 
 const AISpaceship = forwardRef<THREE.Group, AIShipProps>(({ position, rotationY, color }, ref) => {
   return (
-    <group position={position} rotation-y={rotationY} ref={ref}>
-      {/* Main body */}
+    <group position={position} rotation-y={rotationY} ref={ref} scale={1.5}>
+      {/* Main body - simplified */}
       <Box args={[2, 1, 4]} position={[0, 0, 0]}>
         <meshStandardMaterial 
           color={color} 
           emissive={color}
-          emissiveIntensity={0.5}
-          metalness={0.8}
-          roughness={0.2}
+          emissiveIntensity={0.4}
+          metalness={0.7}
+          roughness={0.3}
         />
       </Box>
-      {/* Wings */}
+      {/* Wings - simplified */}
       <Box args={[6, 0.3, 2]} position={[0, 0, 0.5]}>
         <meshStandardMaterial 
           color={color}
           emissive={color}
-          emissiveIntensity={0.3}
-          metalness={0.6}
-          roughness={0.3}
+          emissiveIntensity={0.2}
+          metalness={0.5}
+          roughness={0.4}
         />
       </Box>
-      {/* Cockpit */}
-      <Box args={[1.2, 0.8, 1.5]} position={[0, 0.6, 0.5]}>
-        <meshStandardMaterial 
-          color="#00ffff"
-          emissive="#00ffff"
-          emissiveIntensity={0.8}
-          transparent
-          opacity={0.6}
-        />
-      </Box>
-      {/* Engine glow */}
-      <pointLight position={[0, 0, -2]} color={color} intensity={2} distance={10} />
+      {/* Removed cockpit and point light for performance */}
     </group>
   );
 });
@@ -61,20 +51,17 @@ const FinishDisk = () => {
 
   return (
     <group position={position}>
-      {/* Outer Ring - vertical, facing towards player */}
-      <Torus args={[FINISH_DISK_RADIUS, 1, 16, 100]}>
+      {/* Outer Ring - reduced segments for performance */}
+      <Torus args={[FINISH_DISK_RADIUS, 1, 8, 32]}>
         <meshBasicMaterial color="#00ff00" />
       </Torus>
-      {/* Inner transparent disk - vertical, facing player */}
-      <Cylinder args={[FINISH_DISK_RADIUS, FINISH_DISK_RADIUS, 0.1, 64, 1, true]} rotation-x={Math.PI / 2}>
+      {/* Inner transparent disk - reduced segments */}
+      <Cylinder args={[FINISH_DISK_RADIUS, FINISH_DISK_RADIUS, 0.1, 32, 1, true]} rotation-x={Math.PI / 2}>
         <meshStandardMaterial color="#00ff00" transparent opacity={0.1} side={THREE.DoubleSide} />
       </Cylinder>
-      {/* Add glowing effect rings */}
-      <Torus args={[FINISH_DISK_RADIUS * 0.8, 0.5, 16, 100]}>
+      {/* Single glowing ring - reduced segments */}
+      <Torus args={[FINISH_DISK_RADIUS * 0.8, 0.5, 8, 32]}>
         <meshBasicMaterial color="#00ff00" transparent opacity={0.5} />
-      </Torus>
-      <Torus args={[FINISH_DISK_RADIUS * 0.6, 0.3, 16, 100]}>
-        <meshBasicMaterial color="#00ff00" transparent opacity={0.3} />
       </Torus>
     </group>
   );
@@ -98,12 +85,17 @@ const AIManager = () => {
     AI_COUNT, AI_SPEED_MULTIPLIER, AI_SPEED_VARIANCE,
     AI_LATERAL_SWAY_AMPLITUDE, AI_LATERAL_SWAY_FREQUENCY,
     MAX_SPEED, RACE_DISTANCE, AI_INITIAL_Z_MIN, AI_INITIAL_Z_MAX,
-    FINISH_DISK_RADIUS
+    FINISH_DISK_RADIUS, AI_SHOOT_CHANCE, AI_SHOOT_RANGE, AI_SHOOT_CONE,
+    AI_ACCURACY, AI_FIRE_RATE
   } = GAME_CONSTANTS
 
   const setAIStandings = useGameStore((s) => s.setAIStandings)
   const gameState = useGameStore((s) => s.gameState)
   const isRaceStarted = useGameStore((s) => s.isRaceStarted)
+  const getAIHealth = useGameStore((s) => s.getAIHealth)
+  const getAISpeedReduction = useGameStore((s) => s.getAISpeedReduction)
+  const updateAISpeedReduction = useGameStore((s) => s.updateAISpeedReduction)
+  const fireProjectile = useGameStore((s) => s.fireProjectile)
 
   const aiShipsData = useMemo(() => {
     const colors = ['#ff4444', '#ff8800', '#ffff00', '#ff00ff', '#00ff88'];
@@ -159,13 +151,26 @@ const AIManager = () => {
   }, [aiShipsData, gameState, MAX_SPEED, AI_SPEED_MULTIPLIER, AI_SPEED_VARIANCE])
 
   useFrame((state, delta) => {
+    profiler.start('AIManager.frame')
+    
     const finishZ = -RACE_DISTANCE
     const t = state.clock.elapsedTime
+    const raceTime = useGameStore.getState().raceTime
+    const lastAIShotTimes = useGameStore.getState().lastAIShotTimes
+
+    // Update speed reductions
+    profiler.start('AIManager.speedReduction')
+    updateAISpeedReduction(delta)
+    profiler.end('AIManager.speedReduction')
+
+    // Get player position for AI targeting
+    const playerPos = (window as any).__weaponSystemRefs?.playerPosition || new THREE.Vector3()
 
     // Early exit: if finished, keep updating standings but don't move
     const standingsTemp: { id: number, name: string, distance: number, finished: boolean, finishTime?: number }[] = []
 
     // First pass: desired positions (without separation)
+    profiler.start('AIManager.positionCalc')
     const desiredX: number[] = []
     const currentZ: number[] = []
     for (let i = 0; i < aiStateRef.current.length; i++) {
@@ -175,22 +180,29 @@ const AIManager = () => {
       currentZ[i] = st.z
     }
 
-    // Simple pairwise separation to avoid overlap
+    // Optimized separation - only check nearby ships
     const sepZ = 12
     const sepX = 4
-    for (let i = 0; i < aiStateRef.current.length; i++) {
-      for (let j = i + 1; j < aiStateRef.current.length; j++) {
-        const dz = Math.abs(currentZ[i] - currentZ[j])
-        const dx = desiredX[i] - desiredX[j]
-        if (dz < sepZ && Math.abs(dx) < sepX) {
-          const push = (sepX - Math.abs(dx)) * 0.5 // base magnitude
-          const dir = dx >= 0 ? 1 : -1
-          aiStateRef.current[i].xOffset += dir * push * delta * 5
-          aiStateRef.current[j].xOffset -= dir * push * delta * 5
+    // Only run collision every 3rd frame for performance
+    if (state.clock.elapsedTime % 0.05 < delta) {
+      for (let i = 0; i < aiStateRef.current.length; i++) {
+        for (let j = i + 1; j < aiStateRef.current.length; j++) {
+          const dz = Math.abs(currentZ[i] - currentZ[j])
+          if (dz > sepZ) continue // Skip if too far apart in Z
+          
+          const dx = desiredX[i] - desiredX[j]
+          if (Math.abs(dx) < sepX) {
+            const push = (sepX - Math.abs(dx)) * 0.5
+            const dir = dx >= 0 ? 1 : -1
+            aiStateRef.current[i].xOffset += dir * push * delta * 5
+            aiStateRef.current[j].xOffset -= dir * push * delta * 5
+          }
         }
       }
     }
 
+    profiler.end('AIManager.positionCalc')
+    
     // Dampen xOffset
     for (let i = 0; i < aiStateRef.current.length; i++) {
       const st = aiStateRef.current[i]
@@ -198,12 +210,28 @@ const AIManager = () => {
     }
 
     // Move, apply positions, and detect finish
+    profiler.start('AIManager.updateShips')
     for (let i = 0; i < aiStateRef.current.length; i++) {
       const st = aiStateRef.current[i]
 
+      // Check if AI is destroyed
+      const health = getAIHealth(st.id)
+      if (health <= 0) {
+        // Hide destroyed ships
+        const ref = aiRefs.current[i]
+        if (ref) {
+          ref.visible = false
+        }
+        continue
+      }
+
       if (gameState === 'playing' && isRaceStarted && !st.finished) {
+        // Apply speed reduction from damage
+        const speedReduction = getAISpeedReduction(st.id)
+        const effectiveSpeed = st.speed * (1 - speedReduction)
+        
         // Move forward toward finish (negative Z direction)
-        st.z -= st.speed * delta
+        st.z -= effectiveSpeed * delta
       }
 
       // Recompute finalX after separation/damping
@@ -216,27 +244,66 @@ const AIManager = () => {
       if (ref) {
         ref.position.set(finalX, 0, st.z)
         ref.rotation.z = Math.sin(t * AI_LATERAL_SWAY_FREQUENCY + st.phase) * 0.1
-      }
+        
+        // Update position for weapon system
+        if ((window as any).__weaponSystemRefs) {
+          (window as any).__weaponSystemRefs.aiShipPositions.set(st.id, ref.position.clone())
+        }
+        
+        // AI Shooting logic
+        if (gameState === 'playing' && isRaceStarted) {
+          profiler.start('AIManager.shooting')
+          const distanceToPlayer = ref.position.distanceTo(playerPos)
+          
+          // Check if player is in range
+          if (distanceToPlayer < AI_SHOOT_RANGE) {
+            // Calculate angle to player
+            const toPlayer = playerPos.clone().sub(ref.position).normalize()
+            const forward = new THREE.Vector3(0, 0, -1)
+            const angle = Math.acos(forward.dot(toPlayer)) * (180 / Math.PI)
+            
+            // Check if player is in front cone
+            if (angle < AI_SHOOT_CONE) {
+              const lastShot = lastAIShotTimes.get(st.id) || 0
+              const timeSinceLastShot = raceTime - lastShot
+              
+              // Random shooting with fire rate limit
+              if (timeSinceLastShot > AI_FIRE_RATE && Math.random() < AI_SHOOT_CHANCE * delta) {
+                // Add accuracy variation
+                const accuracyOffset = (1 - AI_ACCURACY) * (Math.random() - 0.5) * 2
+                const shootDir = toPlayer.clone()
+                shootDir.x += accuracyOffset * 0.5
+                shootDir.y += accuracyOffset * 0.5
+                shootDir.normalize()
+                
+                const spawnPos = ref.position.clone().add(shootDir.clone().multiplyScalar(3))
+                fireProjectile(spawnPos, shootDir, false)
+                
+                // Update last shot time
+                const newTimes = new Map(lastAIShotTimes)
+                newTimes.set(st.id, raceTime)
+                useGameStore.setState({ lastAIShotTimes: newTimes })
+              }
+              }
+            }
+            profiler.end('AIManager.shooting')
+          }
+        }
 
       // Finish detection: cross finishZ and within disk radius
       if (!st.finished && st.z <= finishZ && Math.abs(finalX) <= FINISH_DISK_RADIUS) {
         st.finished = true
         st.finishTime = useGameStore.getState().raceTime
         finishOrderRef.current.push(st.id)
-
-        // If AI finishes first, end the race
-        if (!aiEndedRef.current) {
-          aiEndedRef.current = true
-          const raceTime = useGameStore.getState().raceTime
-          if (useGameStore.getState().gameState === 'playing') {
-            useGameStore.getState().finishRace(raceTime)
-          }
-        }
+        
+        // AI ships can finish, but don't end the race
+        // The race only ends when the player finishes (handled in SpaceshipController)
       }
 
       const dist = st.finished ? 0 : Math.max(0, Math.abs(st.z - finishZ))
       standingsTemp.push({ id: st.id, name: st.name, distance: dist, finished: st.finished, finishTime: st.finishTime })
     }
+    profiler.end('AIManager.updateShips')
 
     // Order standings: finished by finish order, then by distance
     const finishedList = standingsTemp
@@ -257,6 +324,8 @@ const AIManager = () => {
     }))
 
     setAIStandings(finalStandings)
+    
+    profiler.end('AIManager.frame')
   })
 
   return (

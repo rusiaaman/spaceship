@@ -81,17 +81,17 @@ const Distance = styled.div`
 `
 
 export const Leaderboard = () => {
-  const aiStandings = useGameStore((state) => state.aiStandings)
-  const playerPosition = useGameStore((state) => state.playerPosition)
-  const distanceToFinish = useGameStore((state) => state.distanceToFinish)
-  const gameState = useGameStore((state) => state.gameState)
+  const aiStandings = useGameStore(state => state.aiStandings)
+  const playerPosition = useGameStore(state => state.playerPosition)
+  const distanceToFinish = useGameStore(state => state.distanceToFinish)
+  const gameState = useGameStore(state => state.gameState)
 
   if (gameState !== 'playing') return null
 
   // Combine player and AI standings
   const allRacers = [
     { name: 'YOU', distance: distanceToFinish, position: playerPosition, isPlayer: true },
-    ...aiStandings.map(ai => ({ ...ai, isPlayer: false }))
+    ...aiStandings.map((ai) => ({ ...ai, isPlayer: false }))
   ].sort((a, b) => a.position - b.position)
 
   return (

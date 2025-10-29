@@ -81,10 +81,10 @@ export const MainMenu = () => {
   return (
     <MenuContainer>
       <Title>SPACE ODYSSEY</Title>
-      <Button onClick={handleStart}>START MISSION</Button>
+      <Button onClick={handleStart}>START RACE</Button>
       <Subtitle>
-        Navigate through the cosmos at hyperspeed.<br />
-        Master your controls and explore the infinite void.
+        Race through the cosmos at hyperspeed.<br />
+        Master your controls and claim victory.
       </Subtitle>
     </MenuContainer>
   )

@@ -9,6 +9,8 @@ interface Controls {
   down: boolean
   boost: boolean
   brake: boolean
+  shoot: boolean
+  toggleCamera: boolean
   mouseDeltaX: number
   mouseDeltaY: number
 }
@@ -23,11 +25,15 @@ export const useControls = () => {
     down: false,
     boost: false,
     brake: false,
+    shoot: false,
+    toggleCamera: false,
     mouseDeltaX: 0,
     mouseDeltaY: 0,
   })
 
   const isPointerLocked = useRef(false)
+  // Use ref to store mouse deltas to avoid state updates on every mouse move
+  const mouseDeltaRef = useRef({ x: 0, y: 0 })
 
   useEffect(() => {
     // Request pointer lock on first click
@@ -88,6 +94,9 @@ export const useControls = () => {
         case ' ':
           setControls((prev) => ({ ...prev, brake: true }))
           break
+        case 'c':
+          setControls((prev) => ({ ...prev, toggleCamera: true }))
+          break
       }
     }
 
@@ -122,6 +131,9 @@ export const useControls = () => {
         case ' ':
           setControls((prev) => ({ ...prev, brake: false }))
           break
+        case 'c':
+          setControls((prev) => ({ ...prev, toggleCamera: false }))
+          break
       }
     }
 
@@ -129,28 +141,44 @@ export const useControls = () => {
       // Only process mouse movement when pointer is locked
       if (!isPointerLocked.current) return
 
-      // Use movementX/Y which gives relative movement directly
-      const deltaX = e.movementX || 0
-      const deltaY = e.movementY || 0
+      // Store in ref instead of state to avoid re-renders
+      mouseDeltaRef.current.x = e.movementX || 0
+      mouseDeltaRef.current.y = e.movementY || 0
+    }
 
-      // Update controls with delta values - don't reset immediately
-      setControls((prev) => ({
-        ...prev,
-        mouseDeltaX: deltaX,
-        mouseDeltaY: deltaY,
-      }))
+    const handleMouseDown = (e: MouseEvent) => {
+      // Left mouse button
+      if (e.button === 0) {
+        setControls((prev) => ({ ...prev, shoot: true }))
+      }
+    }
+
+    const handleMouseUp = (e: MouseEvent) => {
+      // Left mouse button
+      if (e.button === 0) {
+        setControls((prev) => ({ ...prev, shoot: false }))
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
     window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mousedown', handleMouseDown)
+    window.addEventListener('mouseup', handleMouseUp)
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
       window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mousedown', handleMouseDown)
+      window.removeEventListener('mouseup', handleMouseUp)
     }
   }, [])
 
-  return controls
+  // Return controls with mouse delta getter
+  return {
+    ...controls,
+    get mouseDeltaX() { return mouseDeltaRef.current.x },
+    get mouseDeltaY() { return mouseDeltaRef.current.y }
+  }
 }
