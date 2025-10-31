@@ -137,15 +137,17 @@ export class PriorityQueue<T> {
 /**
  * Event types for the game event system
  */
-export enum GameEventType {
-  BOOST_END = 'boost_end',
-  PROJECTILE_EXPIRE = 'projectile_expire',
-  AI_STATE_CHANGE = 'ai_state_change',
-  DAMAGE_RECOVERY = 'damage_recovery',
-  WEAPON_COOLDOWN = 'weapon_cooldown'
-}
+export const GameEventType = {
+  BOOST_END: 'boost_end',
+  PROJECTILE_EXPIRE: 'projectile_expire',
+  AI_STATE_CHANGE: 'ai_state_change',
+  DAMAGE_RECOVERY: 'damage_recovery',
+  WEAPON_COOLDOWN: 'weapon_cooldown'
+} as const
 
-export interface GameEvent {
+export type GameEventType = typeof GameEventType[keyof typeof GameEventType]
+
+export type GameEvent = {
   type: GameEventType
   data: any
   callback?: () => void

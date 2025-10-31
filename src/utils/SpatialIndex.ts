@@ -79,7 +79,7 @@ export class SpatialIndex {
 
     // Add all objects to the index
     for (const obj of this.objects) {
-      const { x, y, z } = obj.position
+      const { x, z } = obj.position
       const r = obj.radius
       
       // Add bounding box (we use 2D projection for XZ plane)

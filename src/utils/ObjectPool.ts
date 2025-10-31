@@ -41,7 +41,8 @@ export class ObjectPool<T> {
       } else {
         // Force reuse oldest object if at max capacity
         console.warn('ObjectPool: Max capacity reached, forcing reuse')
-        obj = this.inUse.values().next().value
+        const firstValue = this.inUse.values().next().value as T
+        obj = firstValue
         this.inUse.delete(obj)
         this.reset(obj)
       }

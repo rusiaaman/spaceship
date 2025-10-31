@@ -29,16 +29,13 @@ export const WeaponSystem = () => {
   const removeProjectile = useGameStore(state => state.removeProjectile)
   const damageShip = useGameStore(state => state.damageShip)
   const getAIHealth = useGameStore(state => state.getAIHealth)
+  const incrementHitsLanded = useGameStore(state => state.incrementHitsLanded)
   const gameState = useGameStore(state => state.gameState)
   
   // Store refs for AI ship positions (will be updated from RaceElements)
   const aiShipPositionsRef = useRef<Map<number, THREE.Vector3>>(new Map())
   const playerPositionRef = useRef<THREE.Vector3>(new THREE.Vector3())
   
-  // Spatial partitioning for collision detection
-  const collisionCheckIntervalRef = useRef(0)
-  const COLLISION_CHECK_INTERVAL = 0.016 // ~60fps, check every frame but batch operations
-
   useFrame((_state, delta) => {
     profiler.start('WeaponSystem.frame')
     
@@ -52,19 +49,18 @@ export const WeaponSystem = () => {
     updateProjectiles(delta)
     profiler.end('WeaponSystem.updateProjectiles')
 
-    // Throttle collision checks slightly for performance
-    collisionCheckIntervalRef.current += delta
-    if (collisionCheckIntervalRef.current < COLLISION_CHECK_INTERVAL) {
-      profiler.end('WeaponSystem.frame')
-      return
-    }
-    collisionCheckIntervalRef.current = 0
+    // Get spatial indices from store
+    const spatialIndices = useGameStore.getState().spatialIndices
 
-    // Check collisions with spatial optimization
+    // Rebuild spatial indices for this frame
+    profiler.start('WeaponSystem.rebuildIndices')
+    spatialIndices.rebuildAll()
+    profiler.end('WeaponSystem.rebuildIndices')
+
+    // Check collisions using spatial indexing - O(log n) instead of O(n²)
     profiler.start('WeaponSystem.collisionCheck')
     const projectilesToRemove: string[] = []
     const collisionRadius = GAME_CONSTANTS.SHIP_COLLISION_RADIUS
-    const collisionRadiusSq = collisionRadius * collisionRadius // Use squared distance to avoid sqrt
     
     for (let i = 0; i < activeProjectiles.length; i++) {
       const projectile = activeProjectiles[i]
@@ -75,26 +71,38 @@ export const WeaponSystem = () => {
         continue
       }
 
-      if (projectile.isPlayerProjectile) {
-        // Check collision with AI ships
-        for (const [aiId, aiPos] of aiShipPositionsRef.current) {
+      const isPlayerProjectile = (projectile.state & 2) !== 0 // Check PLAYER_OWNED flag
+
+      if (isPlayerProjectile) {
+        // Use spatial index to find nearby AI ships - O(log n)
+        const nearbyShips = spatialIndices.aiShips.queryRadius(
+          projectile.position,
+          collisionRadius + 5 // Add projectile radius
+        )
+        
+        for (const ship of nearbyShips) {
+          const aiId = ship.id as number
           const health = getAIHealth(aiId)
           if (health <= 0) continue // Skip destroyed ships
           
-          // Use squared distance to avoid expensive sqrt
-          const distSq = projectile.position.distanceToSquared(aiPos)
-          if (distSq < collisionRadiusSq) {
+          // Precise collision check
+          const distSq = projectile.position.distanceToSquared(ship.position)
+          const totalRadiusSq = (collisionRadius + ship.radius) ** 2
+          
+          if (distSq < totalRadiusSq) {
             damageShip(aiId, GAME_CONSTANTS.PROJECTILE_DAMAGE)
+            incrementHitsLanded() // Track successful hit
             projectilesToRemove.push(projectile.id)
-            break // Exit inner loop early
+            break
           }
         }
       } else {
         // Check collision with player
         const distSq = projectile.position.distanceToSquared(playerPositionRef.current)
-        if (distSq < collisionRadiusSq) {
+        if (distSq < collisionRadius * collisionRadius) {
           damageShip('player', GAME_CONSTANTS.PROJECTILE_DAMAGE)
           projectilesToRemove.push(projectile.id)
+          // Note: We don't track AI hits on player as player stats
         }
       }
     }

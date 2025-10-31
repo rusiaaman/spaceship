@@ -5,6 +5,7 @@ import { useControls } from '@/hooks/useControls'
 import { useGameStore } from '@/store/gameStore'
 import { GAME_CONSTANTS } from '@/utils/constants'
 import { profiler } from '@/utils/profiler'
+import { ShipState, BitFlagUtils } from '@/utils/BitFlags'
 
 export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
   const controls = useControls()
@@ -40,28 +41,29 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
     // Cooldown to prevent rapid re-collection
     if (currentTime - collectionCooldownRef.current < 0.5) return
     
-    const { BOOSTER_COUNT, BOOSTER_SPACING, BOOSTER_RADIUS, BOOSTER_DURATION } = GAME_CONSTANTS
-    const { collectedBoosters, collectBooster, activateBoost } = useGameStore.getState()
+    const { BOOSTER_RADIUS, BOOSTER_DURATION } = GAME_CONSTANTS
+    const { collectedBoosters, collectBooster, activateBoost, spatialIndices } = useGameStore.getState()
     
-    for (let i = 0; i < BOOSTER_COUNT; i++) {
-      if (collectedBoosters.has(i) || lastCollectedBoosterRef.current === i) continue
+    // Use spatial index for O(log n) booster proximity check
+    const nearbyBoosters = spatialIndices.boosters.queryRadius(position, BOOSTER_RADIUS + 5)
+    
+    for (const booster of nearbyBoosters) {
+      const boosterId = booster.id as number
       
-      const zPosition = -(i + 1) * BOOSTER_SPACING - 100
-      const xPositions = [-25, 0, 25]
-      const xPosition = xPositions[i % 3]
+      if (collectedBoosters.has(boosterId) || lastCollectedBoosterRef.current === boosterId) continue
       
-      const distance = Math.sqrt(
-        Math.pow(position.x - xPosition, 2) + 
-        Math.pow(position.z - zPosition, 2)
-      )
+      const distance = position.distanceTo(booster.position)
       
       if (distance < BOOSTER_RADIUS) {
-        lastCollectedBoosterRef.current = i
+        lastCollectedBoosterRef.current = boosterId
         collectionCooldownRef.current = currentTime
         
         // Batch the state updates
-        collectBooster(i)
+        collectBooster(boosterId)
         activateBoost(BOOSTER_DURATION)
+        
+        // Remove from spatial index
+        spatialIndices.boosters.remove(boosterId)
         break
       }
     }
@@ -82,9 +84,10 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
     }
     
     // Get frequently updated state and setters inside useFrame
-    const { speed, setRaceTime, setSpeed, setDistanceToFinish, aiStandings, setPlayerPosition, isBoosting, boostEndTime, deactivateBoost, raceTime, fireProjectile } = useGameStore.getState();
+    const { speed, setRaceTime, setSpeed, setDistanceToFinish, aiStandings, setPlayerPosition, playerState, boostEndTime, deactivateBoost, raceTime, fireProjectile } = useGameStore.getState();
 
-    // Check if boost should end
+    // Check if boost should end (handled by event scheduler now, but keep as fallback)
+    const isBoosting = BitFlagUtils.has(playerState, ShipState.BOOSTING)
     if (isBoosting && raceTime >= boostEndTime) {
       deactivateBoost()
     }

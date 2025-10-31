@@ -6,6 +6,8 @@ import { Cylinder, Torus, Box } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '@/store/gameStore';
 import { profiler } from '@/utils/profiler';
+import { ShipState, BitFlagUtils } from '@/utils/BitFlags';
+import { PredictiveTargeting } from '@/utils/AIBehaviors';
 
 interface AIShipProps {
   position: [number, number, number];
@@ -92,10 +94,11 @@ const AIManager = () => {
   const setAIStandings = useGameStore((s) => s.setAIStandings)
   const gameState = useGameStore((s) => s.gameState)
   const isRaceStarted = useGameStore((s) => s.isRaceStarted)
-  const getAIHealth = useGameStore((s) => s.getAIHealth)
   const getAISpeedReduction = useGameStore((s) => s.getAISpeedReduction)
   const updateAISpeedReduction = useGameStore((s) => s.updateAISpeedReduction)
   const fireProjectile = useGameStore((s) => s.fireProjectile)
+  const spatialIndices = useGameStore((s) => s.spatialIndices)
+  const aiStateArray = useGameStore((s) => s.aiStateArray)
 
   const aiShipsData = useMemo(() => {
     const colors = ['#ff4444', '#ff8800', '#ffff00', '#ff00ff', '#00ff88'];
@@ -214,9 +217,11 @@ const AIManager = () => {
     for (let i = 0; i < aiStateRef.current.length; i++) {
       const st = aiStateRef.current[i]
 
-      // Check if AI is destroyed
-      const health = getAIHealth(st.id)
-      if (health <= 0) {
+      // Check if AI is destroyed using bit flags
+      const aiState = aiStateArray[st.id]
+      const isDestroyed = BitFlagUtils.has(aiState, ShipState.DESTROYED)
+      
+      if (isDestroyed) {
         // Hide destroyed ships
         const ref = aiRefs.current[i]
         if (ref) {
@@ -245,50 +250,74 @@ const AIManager = () => {
         ref.position.set(finalX, 0, st.z)
         ref.rotation.z = Math.sin(t * AI_LATERAL_SWAY_FREQUENCY + st.phase) * 0.1
         
-        // Update position for weapon system
+        // Update spatial index for AI ship
+        spatialIndices.aiShips.addOrUpdate({
+          id: st.id,
+          position: ref.position.clone(),
+          radius: 6 // SHIP_COLLISION_RADIUS
+        })
+        
+        // Update position for weapon system (legacy support)
         if ((window as any).__weaponSystemRefs) {
           (window as any).__weaponSystemRefs.aiShipPositions.set(st.id, ref.position.clone())
         }
         
-        // AI Shooting logic
+        // AI Shooting logic with predictive targeting
         if (gameState === 'playing' && isRaceStarted) {
           profiler.start('AIManager.shooting')
-          const distanceToPlayer = ref.position.distanceTo(playerPos)
           
-          // Check if player is in range
-          if (distanceToPlayer < AI_SHOOT_RANGE) {
-            // Calculate angle to player
-            const toPlayer = playerPos.clone().sub(ref.position).normalize()
-            const forward = new THREE.Vector3(0, 0, -1)
-            const angle = Math.acos(forward.dot(toPlayer)) * (180 / Math.PI)
+          // Use spatial index to check if player is nearby
+          const nearbyToPlayer = spatialIndices.aiShips.queryRadius(playerPos, AI_SHOOT_RANGE)
+          const isPlayerNearby = nearbyToPlayer.some(ship => ship.id === st.id)
+          
+          if (isPlayerNearby) {
+            const distanceToPlayer = ref.position.distanceTo(playerPos)
             
-            // Check if player is in front cone
-            if (angle < AI_SHOOT_CONE) {
-              const lastShot = lastAIShotTimes.get(st.id) || 0
-              const timeSinceLastShot = raceTime - lastShot
+            // Check if player is in range
+            if (distanceToPlayer < AI_SHOOT_RANGE) {
+              // Calculate angle to player
+              const toPlayer = playerPos.clone().sub(ref.position).normalize()
+              const forward = new THREE.Vector3(0, 0, -1)
+              const angle = Math.acos(Math.max(-1, Math.min(1, forward.dot(toPlayer)))) * (180 / Math.PI)
               
-              // Random shooting with fire rate limit
-              if (timeSinceLastShot > AI_FIRE_RATE && Math.random() < AI_SHOOT_CHANCE * delta) {
-                // Add accuracy variation
-                const accuracyOffset = (1 - AI_ACCURACY) * (Math.random() - 0.5) * 2
-                const shootDir = toPlayer.clone()
-                shootDir.x += accuracyOffset * 0.5
-                shootDir.y += accuracyOffset * 0.5
-                shootDir.normalize()
+              // Check if player is in front cone
+              if (angle < AI_SHOOT_CONE) {
+                const lastShot = lastAIShotTimes[st.id] || 0
+                const timeSinceLastShot = raceTime - lastShot
                 
-                const spawnPos = ref.position.clone().add(shootDir.clone().multiplyScalar(3))
-                fireProjectile(spawnPos, shootDir, false)
-                
-                // Update last shot time
-                const newTimes = new Map(lastAIShotTimes)
-                newTimes.set(st.id, raceTime)
-                useGameStore.setState({ lastAIShotTimes: newTimes })
-              }
+                // Random shooting with fire rate limit
+                if (timeSinceLastShot > AI_FIRE_RATE && Math.random() < AI_SHOOT_CHANCE * delta) {
+                  // Use predictive targeting
+                  const playerVelocity = new THREE.Vector3(0, 0, -useGameStore.getState().speed)
+                  const leadPosition = PredictiveTargeting.calculateLeadPosition(
+                    ref.position,
+                    playerPos,
+                    playerVelocity,
+                    GAME_CONSTANTS.PROJECTILE_SPEED
+                  )
+                  
+                  const shootDir = leadPosition.sub(ref.position).normalize()
+                  
+                  // Add accuracy variation
+                  const accuracyOffset = (1 - AI_ACCURACY) * (Math.random() - 0.5) * 2
+                  shootDir.x += accuracyOffset * 0.5
+                  shootDir.y += accuracyOffset * 0.5
+                  shootDir.normalize()
+                  
+                  const spawnPos = ref.position.clone().add(shootDir.clone().multiplyScalar(3))
+                  fireProjectile(spawnPos, shootDir, false)
+                  
+                  // Update last shot time using typed array
+                  const newTimes = lastAIShotTimes.slice()
+                  newTimes[st.id] = raceTime
+                  useGameStore.setState({ lastAIShotTimes: newTimes })
+                }
               }
             }
-            profiler.end('AIManager.shooting')
           }
+          profiler.end('AIManager.shooting')
         }
+      }
 
       // Finish detection: cross finishZ and within disk radius
       if (!st.finished && st.z <= finishZ && Math.abs(finalX) <= FINISH_DISK_RADIUS) {

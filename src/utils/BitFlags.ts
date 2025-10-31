@@ -6,28 +6,28 @@
 /**
  * Ship state flags (can be combined)
  */
-export enum ShipState {
-  NONE = 0,
-  ACTIVE = 1 << 0,      // 1
-  BOOSTING = 1 << 1,    // 2
-  DAMAGED = 1 << 2,     // 4
-  SHOOTING = 1 << 3,    // 8
-  DESTROYED = 1 << 4,   // 16
-  EVADING = 1 << 5,     // 32
-  PURSUING = 1 << 6,    // 64
-  FORMATION = 1 << 7    // 128
-}
+export const ShipState = {
+  NONE: 0,
+  ACTIVE: 1 << 0,      // 1
+  BOOSTING: 1 << 1,    // 2
+  DAMAGED: 1 << 2,     // 4
+  SHOOTING: 1 << 3,    // 8
+  DESTROYED: 1 << 4,   // 16
+  EVADING: 1 << 5,     // 32
+  PURSUING: 1 << 6,    // 64
+  FORMATION: 1 << 7    // 128
+} as const
 
 /**
  * Projectile state flags
  */
-export enum ProjectileState {
-  NONE = 0,
-  ACTIVE = 1 << 0,      // 1
-  PLAYER_OWNED = 1 << 1, // 2
-  HOMING = 1 << 2,      // 4
-  CRITICAL = 1 << 3     // 8
-}
+export const ProjectileState = {
+  NONE: 0,
+  ACTIVE: 1 << 0,      // 1
+  PLAYER_OWNED: 1 << 1, // 2
+  HOMING: 1 << 2,      // 4
+  CRITICAL: 1 << 3     // 8
+} as const
 
 /**
  * Bit flag helper class

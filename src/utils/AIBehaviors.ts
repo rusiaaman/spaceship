@@ -5,7 +5,6 @@
 
 import * as YUKA from 'yuka'
 import * as THREE from 'three'
-import { GAME_CONSTANTS } from './constants'
 
 /**
  * Convert THREE.Vector3 to YUKA.Vector3
@@ -54,7 +53,7 @@ export class AIVehicle extends YUKA.Vehicle {
 export class PursuitBehavior {
   private pursueBehavior: YUKA.PursuitBehavior
 
-  constructor(vehicle: AIVehicle, target: YUKA.Vehicle, predictionFactor: number = 1.0) {
+  constructor(_vehicle: AIVehicle, target: YUKA.Vehicle, predictionFactor: number = 1.0) {
     this.pursueBehavior = new YUKA.PursuitBehavior(target, predictionFactor)
   }
 
@@ -68,11 +67,9 @@ export class PursuitBehavior {
  */
 export class EvasionBehavior {
   private evadeBehavior: YUKA.EvadeBehavior
-  private panicDistance: number
 
-  constructor(vehicle: AIVehicle, target: YUKA.Vehicle, panicDistance: number = 100, predictionFactor: number = 1.0) {
+  constructor(_vehicle: AIVehicle, target: YUKA.Vehicle, panicDistance: number = 100, predictionFactor: number = 1.0) {
     this.evadeBehavior = new YUKA.EvadeBehavior(target, panicDistance, predictionFactor)
-    this.panicDistance = panicDistance
   }
 
   calculate(vehicle: AIVehicle, force: YUKA.Vector3): YUKA.Vector3 {
@@ -108,9 +105,8 @@ export class ObstacleAvoidanceBehavior {
 export class SeparationBehavior {
   private separateBehavior: YUKA.SeparationBehavior
 
-  constructor(vehicles: AIVehicle[]) {
+  constructor(_vehicles: AIVehicle[]) {
     this.separateBehavior = new YUKA.SeparationBehavior()
-    vehicles.forEach(v => this.separateBehavior.entities.push(v))
   }
 
   calculate(vehicle: AIVehicle, force: YUKA.Vector3): YUKA.Vector3 {
@@ -124,9 +120,8 @@ export class SeparationBehavior {
 export class AlignmentBehavior {
   private alignBehavior: YUKA.AlignmentBehavior
 
-  constructor(vehicles: AIVehicle[]) {
+  constructor(_vehicles: AIVehicle[]) {
     this.alignBehavior = new YUKA.AlignmentBehavior()
-    vehicles.forEach(v => this.alignBehavior.entities.push(v))
   }
 
   calculate(vehicle: AIVehicle, force: YUKA.Vector3): YUKA.Vector3 {
@@ -164,21 +159,23 @@ export class WanderBehavior {
     this.wanderBehavior.jitter = jitter
   }
 
-  calculate(vehicle: AIVehicle, force: YUKA.Vector3): YUKA.Vector3 {
-    return this.wanderBehavior.calculate(vehicle, force)
+  calculate(vehicle: AIVehicle, force: YUKA.Vector3, delta?: number): YUKA.Vector3 {
+    return this.wanderBehavior.calculate(vehicle, force, delta || 0)
   }
 }
 
 /**
  * AI behavior state machine
  */
-export enum AIBehaviorState {
-  RACING = 'racing',
-  PURSUING = 'pursuing',
-  EVADING = 'evading',
-  FORMATION = 'formation',
-  WANDERING = 'wandering'
-}
+export const AIBehaviorState = {
+  RACING: 'racing',
+  PURSUING: 'pursuing',
+  EVADING: 'evading',
+  FORMATION: 'formation',
+  WANDERING: 'wandering'
+} as const
+
+export type AIBehaviorState = typeof AIBehaviorState[keyof typeof AIBehaviorState]
 
 /**
  * AI Controller that manages behavior switching
@@ -209,16 +206,18 @@ export class AIController {
     
     // Add separation with high weight
     const separationSteering = new YUKA.SteeringBehavior()
-    separationSteering.calculate = (vehicle: YUKA.Vehicle, force: YUKA.Vector3) => {
-      return this.separationBehavior.calculate(vehicle as AIVehicle, force)
+    const sepBehavior = this.separationBehavior
+    separationSteering.calculate = (v: YUKA.Vehicle, force: YUKA.Vector3) => {
+      return sepBehavior.calculate(v as AIVehicle, force)
     }
     separationSteering.weight = this.weights.separation
     this.steeringManager.add(separationSteering)
     
     // Add wander with low weight for natural movement
     const wanderSteering = new YUKA.SteeringBehavior()
-    wanderSteering.calculate = (vehicle: YUKA.Vehicle, force: YUKA.Vector3) => {
-      return this.wanderBehavior.calculate(vehicle as AIVehicle, force)
+    const wandBehavior = this.wanderBehavior
+    wanderSteering.calculate = (v: YUKA.Vehicle, force: YUKA.Vector3) => {
+      return wandBehavior.calculate(v as AIVehicle, force)
     }
     wanderSteering.weight = this.weights.wander
     this.steeringManager.add(wanderSteering)
@@ -230,8 +229,8 @@ export class AIController {
   addPursuit(target: YUKA.Vehicle): void {
     const pursuitBehavior = new PursuitBehavior(this.vehicle, target, 0.5)
     const steering = new YUKA.SteeringBehavior()
-    steering.calculate = (vehicle: YUKA.Vehicle, force: YUKA.Vector3) => {
-      return pursuitBehavior.calculate(vehicle as AIVehicle, force)
+    steering.calculate = (v: YUKA.Vehicle, force: YUKA.Vector3) => {
+      return pursuitBehavior.calculate(v as AIVehicle, force)
     }
     steering.weight = this.weights.pursuit
     this.steeringManager.add(steering)
@@ -243,8 +242,8 @@ export class AIController {
   addEvasion(target: YUKA.Vehicle, panicDistance: number = 80): void {
     const evasionBehavior = new EvasionBehavior(this.vehicle, target, panicDistance, 0.8)
     const steering = new YUKA.SteeringBehavior()
-    steering.calculate = (vehicle: YUKA.Vehicle, force: YUKA.Vector3) => {
-      return evasionBehavior.calculate(vehicle as AIVehicle, force)
+    steering.calculate = (v: YUKA.Vehicle, force: YUKA.Vector3) => {
+      return evasionBehavior.calculate(v as AIVehicle, force)
     }
     steering.weight = this.weights.evasion
     this.steeringManager.add(steering)
@@ -254,7 +253,6 @@ export class AIController {
    * Update AI vehicle
    */
   update(delta: number): void {
-    this.steeringManager.calculate(delta)
     this.vehicle.update(delta)
   }
 
