@@ -505,10 +505,8 @@ export const HUD = () => {
   const speed = useGameStore(state => state.speed)
   const gameState = useGameStore(state => state.gameState)
   const countdown = useGameStore(state => state.countdown)
-  const isBoosting = useGameStore(state => state.isBoosting)
   const playerHealth = useGameStore(state => state.playerHealth)
   const playerMaxHealth = useGameStore(state => state.playerMaxHealth)
-  const lastShotTime = useGameStore(state => state.lastShotTime)
   const raceTime = useGameStore(state => state.raceTime)
   const finishTime = useGameStore(state => state.finishTime)
   const distanceToFinish = useGameStore(state => state.distanceToFinish)
@@ -523,6 +521,13 @@ export const HUD = () => {
   const setCountdown = useGameStore.getState().setCountdown
   const startRace = useGameStore.getState().startRace
   const resetGame = useGameStore.getState().resetGame
+  
+  // Get isBoosting and lastShotTime without subscription
+  const isBoosting = useGameStore(state => {
+    const playerState = state.playerState
+    return (playerState & 4) !== 0 // Check BOOSTING flag
+  })
+  const lastShotTime = useGameStore(state => state.lastShotTime)
   
   const speedPercent = (speed / maxSpeed) * 100
   const healthPercent = (playerHealth / playerMaxHealth) * 100

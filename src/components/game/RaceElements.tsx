@@ -2,7 +2,7 @@
 import { useMemo, useRef, forwardRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { GAME_CONSTANTS } from '@/utils/constants';
-import { Cylinder, Torus, Box } from '@react-three/drei';
+import { Cylinder, Torus } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '@/store/gameStore';
 import { profiler } from '@/utils/profiler';
@@ -15,30 +15,33 @@ interface AIShipProps {
   color: string;
 }
 
+// Shared geometries for all AI ships (performance optimization)
+const aiBodyGeometry = new THREE.BoxGeometry(2, 1, 4)
+const aiWingGeometry = new THREE.BoxGeometry(6, 0.3, 2)
+
 const AISpaceship = forwardRef<THREE.Group, AIShipProps>(({ position, rotationY, color }, ref) => {
   return (
     <group position={position} rotation-y={rotationY} ref={ref} scale={1.5}>
-      {/* Main body - simplified */}
-      <Box args={[2, 1, 4]} position={[0, 0, 0]}>
+      {/* Main body - using shared geometry */}
+      <mesh geometry={aiBodyGeometry} position={[0, 0, 0]}>
         <meshStandardMaterial 
           color={color} 
           emissive={color}
-          emissiveIntensity={0.4}
-          metalness={0.7}
-          roughness={0.3}
+          emissiveIntensity={0.3}
+          metalness={0.6}
+          roughness={0.4}
         />
-      </Box>
-      {/* Wings - simplified */}
-      <Box args={[6, 0.3, 2]} position={[0, 0, 0.5]}>
+      </mesh>
+      {/* Wings - using shared geometry */}
+      <mesh geometry={aiWingGeometry} position={[0, 0, 0.5]}>
         <meshStandardMaterial 
           color={color}
           emissive={color}
-          emissiveIntensity={0.2}
-          metalness={0.5}
-          roughness={0.4}
+          emissiveIntensity={0.15}
+          metalness={0.4}
+          roughness={0.5}
         />
-      </Box>
-      {/* Removed cockpit and point light for performance */}
+      </mesh>
     </group>
   );
 });
@@ -128,6 +131,8 @@ const AIManager = () => {
   const finishOrderRef = useRef<number[]>([])
   const initOnceRef = useRef(false)
   const aiEndedRef = useRef(false)
+  const frameCounterRef = useRef(0)
+  const lastAIUpdateFrame = useRef(0)
 
   // Initialize or reset AI states when entering menu or countdown
   useEffect(() => {
@@ -156,12 +161,18 @@ const AIManager = () => {
   useFrame((state, delta) => {
     profiler.start('AIManager.frame')
     
+    frameCounterRef.current++
+    const currentFrame = frameCounterRef.current
+    
+    // AI update every 2 frames for performance (still smooth at 30 AI updates/sec)
+    const shouldUpdateAI = currentFrame - lastAIUpdateFrame.current >= 2
+    
     const finishZ = -RACE_DISTANCE
     const t = state.clock.elapsedTime
     const raceTime = useGameStore.getState().raceTime
     const lastAIShotTimes = useGameStore.getState().lastAIShotTimes
 
-    // Update speed reductions
+    // Update speed reductions every frame (lightweight)
     profiler.start('AIManager.speedReduction')
     updateAISpeedReduction(delta)
     profiler.end('AIManager.speedReduction')
@@ -186,8 +197,8 @@ const AIManager = () => {
     // Optimized separation - only check nearby ships
     const sepZ = 12
     const sepX = 4
-    // Only run collision every 3rd frame for performance
-    if (state.clock.elapsedTime % 0.05 < delta) {
+    // Only run collision when AI updates
+    if (shouldUpdateAI) {
       for (let i = 0; i < aiStateRef.current.length; i++) {
         for (let j = i + 1; j < aiStateRef.current.length; j++) {
           const dz = Math.abs(currentZ[i] - currentZ[j])
@@ -214,6 +225,10 @@ const AIManager = () => {
 
     // Move, apply positions, and detect finish
     profiler.start('AIManager.updateShips')
+    
+    // Batch position updates for spatial index
+    const spatialUpdates: Array<{ id: number; position: THREE.Vector3; radius: number }> = []
+    
     for (let i = 0; i < aiStateRef.current.length; i++) {
       const st = aiStateRef.current[i]
 
@@ -250,8 +265,8 @@ const AIManager = () => {
         ref.position.set(finalX, 0, st.z)
         ref.rotation.z = Math.sin(t * AI_LATERAL_SWAY_FREQUENCY + st.phase) * 0.1
         
-        // Update spatial index for AI ship
-        spatialIndices.aiShips.addOrUpdate({
+        // Batch spatial index update
+        spatialUpdates.push({
           id: st.id,
           position: ref.position.clone(),
           radius: 6 // SHIP_COLLISION_RADIUS
@@ -262,56 +277,50 @@ const AIManager = () => {
           (window as any).__weaponSystemRefs.aiShipPositions.set(st.id, ref.position.clone())
         }
         
-        // AI Shooting logic with predictive targeting
-        if (gameState === 'playing' && isRaceStarted) {
+        // AI Shooting logic - only update when shouldUpdateAI
+        if (shouldUpdateAI && gameState === 'playing' && isRaceStarted) {
           profiler.start('AIManager.shooting')
           
-          // Use spatial index to check if player is nearby
-          const nearbyToPlayer = spatialIndices.aiShips.queryRadius(playerPos, AI_SHOOT_RANGE)
-          const isPlayerNearby = nearbyToPlayer.some(ship => ship.id === st.id)
+          const distanceToPlayer = ref.position.distanceTo(playerPos)
           
-          if (isPlayerNearby) {
-            const distanceToPlayer = ref.position.distanceTo(playerPos)
+          // Distance-based LOD: only shoot if player is reasonably close
+          if (distanceToPlayer < AI_SHOOT_RANGE) {
+            // Calculate angle to player
+            const toPlayer = playerPos.clone().sub(ref.position).normalize()
+            const forward = new THREE.Vector3(0, 0, -1)
+            const angle = Math.acos(Math.max(-1, Math.min(1, forward.dot(toPlayer)))) * (180 / Math.PI)
             
-            // Check if player is in range
-            if (distanceToPlayer < AI_SHOOT_RANGE) {
-              // Calculate angle to player
-              const toPlayer = playerPos.clone().sub(ref.position).normalize()
-              const forward = new THREE.Vector3(0, 0, -1)
-              const angle = Math.acos(Math.max(-1, Math.min(1, forward.dot(toPlayer)))) * (180 / Math.PI)
+            // Check if player is in front cone
+            if (angle < AI_SHOOT_CONE) {
+              const lastShot = lastAIShotTimes[st.id] || 0
+              const timeSinceLastShot = raceTime - lastShot
               
-              // Check if player is in front cone
-              if (angle < AI_SHOOT_CONE) {
-                const lastShot = lastAIShotTimes[st.id] || 0
-                const timeSinceLastShot = raceTime - lastShot
+              // Random shooting with fire rate limit
+              if (timeSinceLastShot > AI_FIRE_RATE && Math.random() < AI_SHOOT_CHANCE * delta * 2) { // *2 to compensate for frame skipping
+                // Use predictive targeting
+                const playerVelocity = new THREE.Vector3(0, 0, -useGameStore.getState().speed)
+                const leadPosition = PredictiveTargeting.calculateLeadPosition(
+                  ref.position,
+                  playerPos,
+                  playerVelocity,
+                  GAME_CONSTANTS.PROJECTILE_SPEED
+                )
                 
-                // Random shooting with fire rate limit
-                if (timeSinceLastShot > AI_FIRE_RATE && Math.random() < AI_SHOOT_CHANCE * delta) {
-                  // Use predictive targeting
-                  const playerVelocity = new THREE.Vector3(0, 0, -useGameStore.getState().speed)
-                  const leadPosition = PredictiveTargeting.calculateLeadPosition(
-                    ref.position,
-                    playerPos,
-                    playerVelocity,
-                    GAME_CONSTANTS.PROJECTILE_SPEED
-                  )
-                  
-                  const shootDir = leadPosition.sub(ref.position).normalize()
-                  
-                  // Add accuracy variation
-                  const accuracyOffset = (1 - AI_ACCURACY) * (Math.random() - 0.5) * 2
-                  shootDir.x += accuracyOffset * 0.5
-                  shootDir.y += accuracyOffset * 0.5
-                  shootDir.normalize()
-                  
-                  const spawnPos = ref.position.clone().add(shootDir.clone().multiplyScalar(3))
-                  fireProjectile(spawnPos, shootDir, false)
-                  
-                  // Update last shot time using typed array
-                  const newTimes = lastAIShotTimes.slice()
-                  newTimes[st.id] = raceTime
-                  useGameStore.setState({ lastAIShotTimes: newTimes })
-                }
+                const shootDir = leadPosition.sub(ref.position).normalize()
+                
+                // Add accuracy variation
+                const accuracyOffset = (1 - AI_ACCURACY) * (Math.random() - 0.5) * 2
+                shootDir.x += accuracyOffset * 0.5
+                shootDir.y += accuracyOffset * 0.5
+                shootDir.normalize()
+                
+                const spawnPos = ref.position.clone().add(shootDir.clone().multiplyScalar(3))
+                fireProjectile(spawnPos, shootDir, false)
+                
+                // Update last shot time using typed array
+                const newTimes = lastAIShotTimes.slice()
+                newTimes[st.id] = raceTime
+                useGameStore.setState({ lastAIShotTimes: newTimes })
               }
             }
           }
@@ -332,6 +341,18 @@ const AIManager = () => {
       const dist = st.finished ? 0 : Math.max(0, Math.abs(st.z - finishZ))
       standingsTemp.push({ id: st.id, name: st.name, distance: dist, finished: st.finished, finishTime: st.finishTime })
     }
+    
+    // Batch update spatial index
+    if (spatialUpdates.length > 0) {
+      spatialUpdates.forEach(update => {
+        spatialIndices.aiShips.addOrUpdate(update)
+      })
+    }
+    
+    if (shouldUpdateAI) {
+      lastAIUpdateFrame.current = currentFrame
+    }
+    
     profiler.end('AIManager.updateShips')
 
     // Order standings: finished by finish order, then by distance

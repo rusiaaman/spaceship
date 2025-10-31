@@ -45,13 +45,16 @@ export const GameScene = () => {
       <SpaceshipController ref={spaceshipRef} />
       <SpaceshipModel spaceshipRef={spaceshipRef} />
 
-      {/* Post-processing effects - reduced for performance */}
-      <EffectComposer>
+      {/* Post-processing effects - heavily optimized for performance */}
+      <EffectComposer multisampling={0}>
         <Bloom
-          intensity={1.2}
-          luminanceThreshold={0.3}
-          luminanceSmoothing={0.8}
+          intensity={0.8}
+          luminanceThreshold={0.4}
+          luminanceSmoothing={0.9}
           mipmapBlur
+          levels={5}
+          width={512}
+          height={512}
         />
       </EffectComposer>
     </Canvas>

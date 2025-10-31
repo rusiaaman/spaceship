@@ -51,11 +51,13 @@ export const WeaponSystem = () => {
 
     // Get spatial indices from store
     const spatialIndices = useGameStore.getState().spatialIndices
-
-    // Rebuild spatial indices for this frame
-    profiler.start('WeaponSystem.rebuildIndices')
-    spatialIndices.rebuildAll()
-    profiler.end('WeaponSystem.rebuildIndices')
+    
+    // Only rebuild indices if needed (incremental updates)
+    if (spatialIndices.needsRebuild()) {
+      profiler.start('WeaponSystem.rebuildIndices')
+      spatialIndices.rebuildIfNeeded()
+      profiler.end('WeaponSystem.rebuildIndices')
+    }
 
     // Check collisions using spatial indexing - O(log n) instead of O(n²)
     profiler.start('WeaponSystem.collisionCheck')
@@ -150,8 +152,6 @@ interface LaserBeamProps {
 
 const LaserBeam = ({ projectile }: LaserBeamProps) => {
   const groupRef = useRef<THREE.Group>(null)
-  const meshRef = useRef<THREE.Mesh>(null)
-  const glowRef = useRef<THREE.Mesh>(null)
   
   // Pre-calculate and cache initial values
   const initialData = useMemo(() => {
@@ -176,31 +176,15 @@ const LaserBeam = ({ projectile }: LaserBeamProps) => {
 
   return (
     <group ref={groupRef} position={initialData.position} quaternion={initialData.quaternion}>
-      {/* Main beam with combined glow effect */}
-      <mesh ref={meshRef} geometry={sharedBeamGeometry}>
+      {/* Single optimized beam - removed glow layer and point light for performance */}
+      <mesh geometry={sharedBeamGeometry}>
         <meshBasicMaterial
           color={projectile.color}
           transparent
-          opacity={0.9}
+          opacity={0.95}
           blending={THREE.AdditiveBlending}
         />
       </mesh>
-      {/* Single glow layer - reduced from 3 layers */}
-      <mesh ref={glowRef} geometry={sharedBeamGeometry} scale={1.8}>
-        <meshBasicMaterial
-          color={projectile.color}
-          transparent
-          opacity={0.3}
-          blending={THREE.AdditiveBlending}
-        />
-      </mesh>
-      {/* Optimized point light */}
-      <pointLight
-        color={projectile.color}
-        intensity={20}
-        distance={20}
-        decay={2}
-      />
     </group>
   )
 }

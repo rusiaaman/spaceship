@@ -16,12 +16,23 @@ class Profiler {
   private lastLogTime = 0
   private readonly LOG_INTERVAL = 2000 // Log every 2 seconds
   private readonly WARN_THRESHOLD = 16 // Warn if operation takes > 16ms (60fps threshold)
+  private enabled = false // Disabled by default for production performance
+  
+  enable() {
+    this.enabled = true
+  }
+  
+  disable() {
+    this.enabled = false
+  }
   
   start(name: string) {
+    if (!this.enabled) return
     this.activeTimers.set(name, performance.now())
   }
   
   end(name: string) {
+    if (!this.enabled) return
     const startTime = this.activeTimers.get(name)
     if (!startTime) return
     
@@ -41,13 +52,14 @@ class Profiler {
       })
     }
     
-    // Immediate warning for slow operations
-    if (duration > this.WARN_THRESHOLD) {
+    // Immediate warning for slow operations (only in dev mode)
+    if (duration > this.WARN_THRESHOLD && import.meta.env.DEV) {
       console.warn(`⚠️ SLOW: ${name} took ${duration.toFixed(2)}ms (threshold: ${this.WARN_THRESHOLD}ms)`)
     }
   }
   
   frame() {
+    if (!this.enabled) return
     this.frameCount++
     const now = performance.now()
     
@@ -94,6 +106,7 @@ class Profiler {
   }
   
   measure<T>(name: string, fn: () => T): T {
+    if (!this.enabled) return fn()
     this.start(name)
     try {
       return fn()
@@ -104,6 +117,13 @@ class Profiler {
 }
 
 export const profiler = new Profiler()
+
+// Enable profiler only in development mode
+if (import.meta.env.DEV) {
+  profiler.enable()
+  // Expose to window for manual control
+  ;(window as any).__profiler = profiler
+}
 
 // Helper for async operations
 export const profileAsync = async <T>(name: string, fn: () => Promise<T>): Promise<T> => {

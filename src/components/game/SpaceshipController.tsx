@@ -96,19 +96,20 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
     if (isRaceStarted && gameState === 'playing') {
       setRaceTime((prev: number) => prev + delta);
       
-      // Update distance to finish
+      // Update distance to finish (throttled)
       const finishZ = -GAME_CONSTANTS.RACE_DISTANCE;
       const distance = Math.max(0, Math.abs(spaceship.position.z - finishZ));
       setDistanceToFinish(distance);
       
-      // Calculate player position less frequently (every 10 frames)
-      if (Math.floor(raceTime * 60) % 10 === 0) {
+      // Calculate player position less frequently (every 15 frames for better performance)
+      if (Math.floor(raceTime * 60) % 15 === 0) {
         let position = 1;
-        aiStandings.forEach((ai) => {
-          if (ai.distance < distance) {
+        const aiCount = aiStandings.length;
+        for (let i = 0; i < aiCount; i++) {
+          if (aiStandings[i].distance < distance) {
             position++;
           }
-        });
+        }
         setPlayerPosition(position);
       }
     }
@@ -226,8 +227,8 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
         const targetHeight = 0;
         spaceship.position.y = THREE.MathUtils.lerp(spaceship.position.y, targetHeight, 0.1);
 
-        // Check for booster collision with current time
-        if (isRaceStarted) {
+        // Check for booster collision with current time (every other frame)
+        if (isRaceStarted && Math.floor(raceTime * 60) % 2 === 0) {
           profiler.start('SpaceshipController.boosterCheck')
           checkBoosterCollision(spaceship.position, raceTime);
           profiler.end('SpaceshipController.boosterCheck')

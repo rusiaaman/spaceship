@@ -196,12 +196,30 @@ export class GameSpatialIndices {
   boosters = new SpatialIndex()
 
   /**
-   * Rebuild all indices
+   * Rebuild all indices (only if needed)
    */
   rebuildAll(): void {
     this.aiShips.rebuild()
     this.projectiles.rebuild()
     this.boosters.rebuild()
+  }
+  
+  /**
+   * Check if any index needs rebuilding
+   */
+  needsRebuild(): boolean {
+    return this.aiShips.getStats().needsRebuild ||
+           this.projectiles.getStats().needsRebuild ||
+           this.boosters.getStats().needsRebuild
+  }
+  
+  /**
+   * Rebuild only indices that need it
+   */
+  rebuildIfNeeded(): void {
+    if (this.aiShips.getStats().needsRebuild) this.aiShips.rebuild()
+    if (this.projectiles.getStats().needsRebuild) this.projectiles.rebuild()
+    if (this.boosters.getStats().needsRebuild) this.boosters.rebuild()
   }
 
   /**

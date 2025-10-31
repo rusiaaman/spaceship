@@ -40,12 +40,13 @@ export const StarField = () => {
         />
       </bufferGeometry>
       <pointsMaterial
-        size={3}
+        size={2.5}
         color="#ffffff"
         sizeAttenuation={true}
-        transparent={true}
-        opacity={0.9}
+        transparent={false}
+        opacity={1}
         blending={THREE.AdditiveBlending}
+        depthWrite={false}
       />
     </points>
   )

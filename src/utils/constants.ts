@@ -4,7 +4,7 @@ export const GAME_CONSTANTS = {
   BOOST_MULTIPLIER: 1.8,
   BRAKE_FORCE: 0.9,
   ROTATION_SPEED: 0.04,
-  STAR_COUNT: 2000,
+  STAR_COUNT: 1500, // Reduced for better performance
   STAR_SPEED_BASE: 0.5,
   STAR_SPREAD: 500,
   
@@ -32,7 +32,7 @@ export const GAME_CONSTANTS = {
   // Combat Constants
   WEAPON_FIRE_RATE: 0.15, // seconds between shots (faster)
   PROJECTILE_SPEED: 400, // increased speed
-  PROJECTILE_LIFESPAN: 2.0, // seconds (reduced for cleanup)
+  PROJECTILE_LIFESPAN: 1.5, // seconds (further reduced for cleanup)
   PROJECTILE_DAMAGE: 25, // health points
   PROJECTILE_RADIUS: 0.3, // visual radius
   SPEED_REDUCTION_ON_HIT: 0.35, // 35% speed reduction
@@ -41,12 +41,12 @@ export const GAME_CONSTANTS = {
   MAX_HEALTH: 100,
   
   // AI Combat
-  AI_SHOOT_CHANCE: 0.25, // 25% per second
-  AI_SHOOT_RANGE: 250, // units
+  AI_SHOOT_CHANCE: 0.20, // 20% per second (reduced for performance)
+  AI_SHOOT_RANGE: 200, // units (reduced for performance)
   AI_SHOOT_CONE: 45, // degrees
   AI_ACCURACY: 0.75, // 75% accuracy
-  AI_FIRE_RATE: 0.8, // seconds between shots
+  AI_FIRE_RATE: 1.0, // seconds between shots (increased for performance)
   
   // Visual
-  MAX_ACTIVE_PROJECTILES: 50, // Reduced for better performance
+  MAX_ACTIVE_PROJECTILES: 40, // Further reduced for better performance
 } as const

@@ -4,6 +4,7 @@ import { GameScene } from './components/game/GameScene'
 import { HUD } from './components/ui/HUD'
 import { MainMenu } from './components/ui/MainMenu'
 import { PauseMenu } from './components/ui/PauseMenu'
+import { PerformanceMonitor } from './components/ui/PerformanceMonitor'
 
 function App() {
   const gameState = useGameStore((state) => state.gameState)
@@ -28,6 +29,7 @@ function App() {
           <GameScene />
           {(gameState === 'playing' || gameState === 'countdown' || gameState === 'finished') && <HUD />}
           {gameState === 'paused' && <PauseMenu />}
+          {import.meta.env.DEV && <PerformanceMonitor />}
         </>
       )}
     </div>
