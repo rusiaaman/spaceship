@@ -9,23 +9,8 @@ export const SoundController = () => {
   const prevGameStateRef = useRef(gameState)
 
   useEffect(() => {
-    // Stop engine sound when returning to menu
-    if (gameState === 'menu' && prevGameStateRef.current !== 'menu') {
-      soundManager.stopEngineSound()
-    }
-
-    // Pause music when paused
-    if (gameState === 'paused' && prevGameStateRef.current === 'playing') {
-      soundManager.pauseBackgroundMusic()
-    }
-
-    // Resume music when unpausing
-    if (gameState === 'playing' && prevGameStateRef.current === 'paused') {
-      soundManager.resumeBackgroundMusic()
-    }
-
-    // Stop engine sound when race finishes
-    if (gameState === 'finished' && prevGameStateRef.current === 'playing') {
+    // Stop engine sound when returning to menu or finishing
+    if ((gameState === 'menu' || gameState === 'finished') && prevGameStateRef.current !== gameState) {
       soundManager.stopEngineSound()
     }
 

@@ -11,10 +11,14 @@ function App() {
   const gameState = useGameStore((state) => state.gameState)
   const setGameState = useGameStore((state) => state.setGameState)
 
-  // Start background music on app load
+  // Start background music when in menu, stop during gameplay
   useEffect(() => {
-    soundManager.playBackgroundMusic()
-  }, [])
+    if (gameState === 'menu') {
+      soundManager.playBackgroundMusic()
+    } else {
+      soundManager.stopBackgroundMusic()
+    }
+  }, [gameState])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
