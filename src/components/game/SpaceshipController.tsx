@@ -6,6 +6,7 @@ import { useGameStore } from '@/store/gameStore'
 import { GAME_CONSTANTS } from '@/utils/constants'
 import { profiler } from '@/utils/profiler'
 import { ShipState, BitFlagUtils } from '@/utils/BitFlags'
+import { soundManager } from '@/utils/soundManager'
 
 export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
   const controls = useControls()
@@ -27,7 +28,8 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
         // Check if within the finish disk radius
         const distanceFromCenter = Math.sqrt(position.x * position.x + position.y * position.y);
         if (distanceFromCenter <= finishRadius) {
-          const raceTime = useGameStore.getState().raceTime;
+      const raceTime = useGameStore.getState().raceTime;
+          soundManager.playSound('victory')
           useGameStore.getState().finishRace(raceTime);
         }
     }
@@ -41,11 +43,12 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
     // Cooldown to prevent rapid re-collection
     if (currentTime - collectionCooldownRef.current < 0.5) return
     
-    const { BOOSTER_RADIUS, BOOSTER_DURATION } = GAME_CONSTANTS
+    const { BOOSTER_RADIUS, BOOSTER_RING_RADIUS, BOOSTER_DURATION } = GAME_CONSTANTS
     const { collectedBoosters, collectBooster, activateBoost, spatialIndices } = useGameStore.getState()
     
     // Use spatial index for O(log n) booster proximity check
-    const nearbyBoosters = spatialIndices.boosters.queryRadius(position, BOOSTER_RADIUS + 5)
+    // Use a wider radius for the initial query to ensure we don't miss boosters
+    const nearbyBoosters = spatialIndices.boosters.queryRadius(position, BOOSTER_RING_RADIUS * 1.5)
     
     for (const booster of nearbyBoosters) {
       const boosterId = booster.id as number
@@ -54,16 +57,24 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
       
       const distance = position.distanceTo(booster.position)
       
-      if (distance < BOOSTER_RADIUS) {
+      // Use a slightly relaxed threshold to avoid misses at speed
+      if (distance < BOOSTER_RADIUS + 3) {
+        console.log('🚀 Booster collected!', boosterId, 'at time:', currentTime)
+        soundManager.playSound('boost-collect')
         lastCollectedBoosterRef.current = boosterId
         collectionCooldownRef.current = currentTime
+        
+        // Remove from spatial index first
+        spatialIndices.boosters.remove(boosterId)
+        // Rebuild immediately so subsequent queries don't see this booster
+        spatialIndices.boosters.rebuild()
         
         // Batch the state updates
         collectBooster(boosterId)
         activateBoost(BOOSTER_DURATION)
         
-        // Remove from spatial index
-        spatialIndices.boosters.remove(boosterId)
+        console.log('✅ Boost activated! Duration:', BOOSTER_DURATION, 'End time:', currentTime + BOOSTER_DURATION)
+        
         break
       }
     }
@@ -84,11 +95,18 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
     }
     
     // Get frequently updated state and setters inside useFrame
-    const { speed, setRaceTime, setSpeed, setDistanceToFinish, aiStandings, setPlayerPosition, playerState, boostEndTime, deactivateBoost, raceTime, fireProjectile } = useGameStore.getState();
+    const { speed, setRaceTime, setSpeed, setDistanceToFinish, aiStandings, setPlayerPosition, playerState, boostEndTime, deactivateBoost, raceTime, fireProjectile, maxSpeed } = useGameStore.getState();
+    
+    // Update engine sound based on speed
+    soundManager.updateEngineSound(speed, maxSpeed, BitFlagUtils.has(playerState, ShipState.BOOSTING))
 
-    // Check if boost should end (handled by event scheduler now, but keep as fallback)
+    // Check if boost should end - always check this every frame
     const isBoosting = BitFlagUtils.has(playerState, ShipState.BOOSTING)
-    if (isBoosting && raceTime >= boostEndTime) {
+    if (isBoosting) {
+      console.log('⚡ Boosting active! Race time:', raceTime, 'Boost end time:', boostEndTime)
+    }
+    if (isBoosting && boostEndTime > 0 && raceTime >= boostEndTime) {
+      console.log('🛑 Boost ended at:', raceTime)
       deactivateBoost()
     }
 
@@ -136,6 +154,7 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
           const spawnOffset = direction.clone().multiplyScalar(5)
           const spawnPosition = spaceship.position.clone().add(spawnOffset)
           
+          soundManager.playSound('weapon-fire')
           fireProjectile(spawnPosition, direction, true)
           profiler.end('SpaceshipController.shooting')
         }
@@ -162,7 +181,9 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
           targetSpeed *= (1 - 0.3 * delta);
         }
 
-        targetSpeed = Math.max(0, Math.min(GAME_CONSTANTS.MAX_SPEED, targetSpeed));
+        // Apply speed cap with boost multiplier
+        const maxSpeedWithBoost = GAME_CONSTANTS.MAX_SPEED * speedMultiplier;
+        targetSpeed = Math.max(0, Math.min(maxSpeedWithBoost, targetSpeed));
         setSpeed(targetSpeed);
         profiler.end('SpaceshipController.speedCalc')
 
@@ -227,10 +248,11 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
         const targetHeight = 0;
         spaceship.position.y = THREE.MathUtils.lerp(spaceship.position.y, targetHeight, 0.1);
 
-        // Check for booster collision with current time (every other frame)
-        if (isRaceStarted && Math.floor(raceTime * 60) % 2 === 0) {
+        // Check for booster collision every frame for responsive detection
+        if (isRaceStarted) {
           profiler.start('SpaceshipController.boosterCheck')
-          checkBoosterCollision(spaceship.position, raceTime);
+          const projectedPos = spaceship.position.clone().add(direction.clone().multiplyScalar(5));
+          checkBoosterCollision(projectedPos, raceTime);
           profiler.end('SpaceshipController.boosterCheck')
         }
 

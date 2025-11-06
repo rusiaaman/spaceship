@@ -9,7 +9,7 @@ export const GAME_CONSTANTS = {
   STAR_SPREAD: 500,
   
   // Racing Constants
-  RACE_DISTANCE: 2000, // Z-coordinate distance to the finish disk
+  RACE_DISTANCE: 5000, // Z-coordinate distance to the finish disk
   FINISH_DISK_RADIUS: 50,
   AI_SPEED_MULTIPLIER: 0.85,
   AI_COUNT: 5,
@@ -22,7 +22,7 @@ export const GAME_CONSTANTS = {
   AI_INITIAL_Z_MAX: -20,
 
   // Speed Booster Constants
-  BOOSTER_COUNT: 12,
+  BOOSTER_COUNT: 6,
   BOOSTER_SPACING: 150, // Distance between boosters
   BOOSTER_RADIUS: 15, // Collision radius
   BOOSTER_RING_RADIUS: 20, // Visual ring size

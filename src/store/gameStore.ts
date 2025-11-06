@@ -205,13 +205,6 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
   activateBoost: (duration) => set((state) => {
     const newState = BitFlagUtils.set(state.playerState, ShipState.BOOSTING)
     
-    // Schedule boost end event
-    state.eventScheduler.scheduleDelayed(duration, {
-      type: GameEventType.BOOST_END,
-      data: null,
-      callback: () => useGameStore.getState().deactivateBoost()
-    })
-    
     return { 
       playerState: newState,
       boostEndTime: state.raceTime + duration 
@@ -221,11 +214,10 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
     playerState: BitFlagUtils.clear(state.playerState, ShipState.BOOSTING)
   })),
   collectBooster: (id) => set((state) => {
-    // Mutate the set in place to avoid creating new Set and triggering re-renders
-    const newSet = state.collectedBoosters
+    // Create a new Set to trigger reactivity
+    const newSet = new Set(state.collectedBoosters)
     newSet.add(id)
-    // Return same reference to prevent re-render
-    return {}
+    return { collectedBoosters: newSet }
   }),
   startRace: () => set({ gameState: 'playing', isRaceStarted: true, countdown: 0 }),
   finishRace: (finishTime) => set({ gameState: 'finished', finishTime }),

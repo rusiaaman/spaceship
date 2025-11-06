@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import { useGameStore } from '@/store/gameStore'
 import { GAME_CONSTANTS } from '@/utils/constants'
 import { profiler } from '@/utils/profiler'
+import { soundManager } from '@/utils/soundManager'
 
 // Create shared geometry once for all laser beams
 const beamLength = 8
@@ -92,7 +93,17 @@ export const WeaponSystem = () => {
           const totalRadiusSq = (collisionRadius + ship.radius) ** 2
           
           if (distSq < totalRadiusSq) {
+            const healthBefore = getAIHealth(aiId)
             damageShip(aiId, GAME_CONSTANTS.PROJECTILE_DAMAGE)
+            const healthAfter = getAIHealth(aiId)
+            
+            // Play explosion sound if ship was destroyed, otherwise hit sound
+            if (healthBefore > 0 && healthAfter <= 0) {
+              soundManager.playSound('explosion')
+            } else {
+              soundManager.playSound('hit')
+            }
+            
             incrementHitsLanded() // Track successful hit
             projectilesToRemove.push(projectile.id)
             break
@@ -102,6 +113,7 @@ export const WeaponSystem = () => {
         // Check collision with player
         const distSq = projectile.position.distanceToSquared(playerPositionRef.current)
         if (distSq < collisionRadius * collisionRadius) {
+          soundManager.playSound('ship-damage')
           damageShip('player', GAME_CONSTANTS.PROJECTILE_DAMAGE)
           projectilesToRemove.push(projectile.id)
           // Note: We don't track AI hits on player as player stats

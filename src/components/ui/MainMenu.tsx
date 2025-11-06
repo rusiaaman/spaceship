@@ -1,5 +1,6 @@
 import styled from '@emotion/styled'
 import { useGameStore } from '@/store/gameStore'
+import { soundManager } from '@/utils/soundManager'
 
 const MenuContainer = styled.div`
   position: fixed;
@@ -75,6 +76,8 @@ export const MainMenu = () => {
   const setGameState = useGameStore((state) => state.setGameState)
 
   const handleStart = () => {
+    // Initialize audio context on user interaction (required by browsers)
+    soundManager.playSound('boost-collect') // Play a quick sound to initialize audio context
     setGameState('countdown')
   }
 

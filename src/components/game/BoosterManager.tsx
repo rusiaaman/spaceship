@@ -5,16 +5,21 @@ import { useGameStore } from '@/store/gameStore'
 import * as THREE from 'three'
 
 const BoosterManagerComponent = () => {
-  const { BOOSTER_COUNT, BOOSTER_SPACING, BOOSTER_RING_RADIUS } = GAME_CONSTANTS
-  const spatialIndices = useGameStore(state => state.spatialIndices)
+  const { BOOSTER_COUNT, BOOSTER_RADIUS, RACE_DISTANCE } = GAME_CONSTANTS
+  const gameState = useGameStore((state) => state.gameState)
+  // Subscribe to collectedBoosters here so only one subscriber handles visibility updates.
+  const collectedBoosters = useGameStore((state) => state.collectedBoosters)
   
   // Generate booster positions along the track
   const boosterPositions = useMemo(() => {
     const positions: Array<{ id: number; position: [number, number, number] }> = []
     
+    // Distribute boosters evenly across the entire track
+    const spacing = RACE_DISTANCE / (BOOSTER_COUNT + 1)
+    
     for (let i = 0; i < BOOSTER_COUNT; i++) {
-      // Start placing boosters after some initial distance
-      const zPosition = -(i + 1) * BOOSTER_SPACING - 100
+      // Distribute evenly from start to finish
+      const zPosition = -(i + 1) * spacing
       
       // Alternate between left, center, and right positions
       const xPositions = [-25, 0, 25]
@@ -27,36 +32,36 @@ const BoosterManagerComponent = () => {
     }
     
     return positions
-  }, [BOOSTER_COUNT, BOOSTER_SPACING])
+  }, [BOOSTER_COUNT, RACE_DISTANCE])
 
-  // Initialize spatial index for boosters
+  // Initialize spatial index for boosters when game starts
   useEffect(() => {
-    // Add all boosters to spatial index
-    boosterPositions.forEach(booster => {
-      spatialIndices.boosters.addOrUpdate({
-        id: booster.id,
-        position: new THREE.Vector3(...booster.position),
-        radius: BOOSTER_RING_RADIUS
-      })
-    })
-    
-    spatialIndices.boosters.rebuild()
-    
-    // Cleanup on unmount
-    return () => {
-      spatialIndices.boosters.clear()
+    if (gameState === 'countdown' || gameState === 'playing') {
+      const { spatialIndices } = useGameStore.getState();
+      spatialIndices.boosters.clear();
+      boosterPositions.forEach(booster => {
+        spatialIndices.boosters.addOrUpdate({
+          id: booster.id,
+          position: new THREE.Vector3(...booster.position),
+          radius: BOOSTER_RADIUS // Use correct collision radius
+        });
+      });
+      spatialIndices.boosters.rebuild();
     }
-  }, [boosterPositions, spatialIndices, BOOSTER_RING_RADIUS])
+  }, [boosterPositions, BOOSTER_RADIUS, gameState]);
 
   return (
     <group>
-      {boosterPositions.map((booster) => (
-        <SpeedBooster
-          key={booster.id}
-          id={booster.id}
-          position={booster.position}
-        />
-      ))}
+      {boosterPositions
+        .filter((b) => !collectedBoosters.has(b.id))
+        .map((booster) => (
+          <SpeedBooster
+            key={booster.id}
+            id={booster.id}
+            position={booster.position}
+          />
+        ))
+      }
     </group>
   )
 }

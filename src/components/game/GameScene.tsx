@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { Canvas } from '@react-three/fiber'
+import { Canvas, useFrame } from '@react-three/fiber'
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
 import * as THREE from 'three'
 import { StarField } from './StarField'
@@ -10,12 +10,31 @@ import RaceElements from './RaceElements'
 import { BoosterManager } from './BoosterManager'
 import { WeaponSystem } from './WeaponSystem'
 import { CombatEffectsManager } from './CombatEffects'
+import { SoundController } from './SoundController'
+import { useGameStore } from '@/store/gameStore'
+import { profiler } from '@/utils/profiler'
+
+// Spatial Index Manager - rebuilds indices when needed
+const SpatialIndexManager = () => {
+  useFrame(() => {
+    profiler.start('SpatialIndexManager')
+    const spatialIndices = useGameStore.getState().spatialIndices
+    
+    // Rebuild only if needed (very fast when no changes)
+    spatialIndices.rebuildIfNeeded()
+    profiler.end('SpatialIndexManager')
+  })
+  
+  return null
+}
 
 export const GameScene = () => {
   const spaceshipRef = useRef<THREE.Group>(null!)
 
   return (
-    <Canvas
+    <>
+      <SoundController />
+      <Canvas
       camera={{ position: [0, 2, 5], fov: 75, near: 0.1, far: 2000 }}
       gl={{ 
         antialias: false, // Disable for better performance
@@ -40,6 +59,7 @@ export const GameScene = () => {
       <BoosterManager />
       <WeaponSystem />
       <CombatEffectsManager />
+      <SpatialIndexManager />
       
       <group ref={spaceshipRef} />
       <SpaceshipController ref={spaceshipRef} />
@@ -58,5 +78,6 @@ export const GameScene = () => {
         />
       </EffectComposer>
     </Canvas>
+    </>
   )
 }

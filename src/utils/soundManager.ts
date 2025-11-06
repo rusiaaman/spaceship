@@ -8,13 +8,19 @@ class SoundManager {
   private audioContext: AudioContext | null = null
   private currentEngineOscillators: OscillatorNode[] = []
   private currentEngineGain: GainNode | null = null
+  private musicVolume: number = 0.4
+  private backgroundMusicOscillators: OscillatorNode[] = []
+  private backgroundMusicGain: GainNode | null = null
+  private isMusicPlaying: boolean = false
+  private isMusicPaused: boolean = false
   
   constructor() {
     console.log('[SoundManager] Created, waiting for initialization')
   }
 
   private ensureInitialized() {
-    if (!this.initialized) {
+    // Check if we need to reinitialize (context was closed)
+    if (!this.initialized || !this.audioContext || this.audioContext.state === 'closed') {
       console.log('[SoundManager] Initializing sounds...')
       this.initializeSounds()
       this.initialized = true
@@ -23,8 +29,13 @@ class SoundManager {
 
   private initializeSounds() {
     try {
-      // Create AudioContext on first use (after user interaction)
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      // Close existing context if it exists
+      if (this.audioContext && this.audioContext.state !== 'closed') {
+        this.audioContext.close()
+      }
+      
+      // Create new AudioContext
+      this.audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
       
       // Resume audio context if suspended
       if (this.audioContext.state === 'suspended') {
@@ -92,7 +103,7 @@ class SoundManager {
       this.currentEngineOscillators.forEach(osc => {
         try {
           osc.stop()
-        } catch (e) {
+        } catch {
           // Ignore if already stopped
         }
       })
@@ -161,7 +172,7 @@ class SoundManager {
       this.currentEngineOscillators.forEach(osc => {
         try {
           osc.stop()
-        } catch (e) {
+        } catch {
           // Ignore if already stopped
         }
       })
@@ -239,6 +250,13 @@ class SoundManager {
           gainNode.gain.value = 0.3 * this.masterVolume
           oscillator.type = 'triangle'
           break
+        case 'countdown':
+          // Countdown beep - clear and attention-grabbing
+          frequency = 880
+          duration = 0.2
+          gainNode.gain.value = 0.4 * this.masterVolume
+          oscillator.type = 'sine'
+          break
         default:
           gainNode.gain.value = 0.2 * this.masterVolume
       }
@@ -270,21 +288,243 @@ class SoundManager {
   }
 
   setMusicVolume(volume: number) {
-    // Music volume setter for future use
-    const musicVolume = Math.max(0, Math.min(1, volume))
-    console.log('Music volume set to:', musicVolume)
+    this.musicVolume = Math.max(0, Math.min(1, volume))
+    console.log('[SoundManager] Music volume set to:', this.musicVolume)
+    
+    // Update music volume if playing
+    if (this.backgroundMusicGain && this.isMusicPlaying) {
+      this.backgroundMusicGain.gain.setTargetAtTime(
+        this.musicVolume * this.masterVolume,
+        this.audioContext?.currentTime || 0,
+        0.1
+      )
+    }
+  }
+
+  playBackgroundMusic() {
+    console.log('[SoundManager] playBackgroundMusic called')
+    this.ensureInitialized()
+    
+    if (!this.audioContext) {
+      console.warn('[SoundManager] AudioContext not available for music')
+      return
+    }
+
+    console.log('[SoundManager] AudioContext state:', this.audioContext.state)
+    console.log('[SoundManager] isMusicPlaying:', this.isMusicPlaying)
+
+    // Don't start if already playing
+    if (this.isMusicPlaying) {
+      console.log('[SoundManager] Music already playing, skipping')
+      return
+    }
+
+    // Resume audio context if needed
+    if (this.audioContext.state === 'suspended') {
+      console.log('[SoundManager] AudioContext suspended, attempting to resume...')
+      this.audioContext.resume().then(() => {
+        console.log('[SoundManager] AudioContext resumed for music')
+        this.startBackgroundMusic()
+      }).catch((error) => {
+        console.error('[SoundManager] Failed to resume AudioContext:', error)
+      })
+    } else {
+      console.log('[SoundManager] Starting background music directly')
+      this.startBackgroundMusic()
+    }
+  }
+
+  private startBackgroundMusic() {
+    if (!this.audioContext || this.isMusicPlaying) return
+
+    try {
+      console.log('[SoundManager] Starting 8-bit background music')
+      
+      // Create gain node for music volume control
+      this.backgroundMusicGain = this.audioContext.createGain()
+      this.backgroundMusicGain.gain.value = this.musicVolume * this.masterVolume
+      this.backgroundMusicGain.connect(this.audioContext.destination)
+
+      // 8-bit style chord progression: I-V-vi-IV in C major
+      // Using square waves for authentic 8-bit sound
+      const chordProgression = [
+        [261.63, 329.63, 392.00], // C major (C-E-G)
+        [392.00, 493.88, 587.33], // G major (G-B-D)
+        [440.00, 523.25, 659.25], // A minor (A-C-E)
+        [349.23, 440.00, 523.25], // F major (F-A-C)
+      ]
+
+      // Melody notes (8-bit style)
+      const melodyNotes = [
+        523.25, 587.33, 659.25, 587.33, // C5, D5, E5, D5
+        523.25, 392.00, 440.00, 493.88, // C5, G4, A4, B4
+        523.25, 587.33, 659.25, 783.99, // C5, D5, E5, G5
+        659.25, 587.33, 523.25, 493.88, // E5, D5, C5, B4
+      ]
+
+      const chordDuration = 2 // seconds per chord
+      const noteDuration = 0.25 // seconds per melody note
+      const totalDuration = chordProgression.length * chordDuration
+
+      // Create bass line (lower octave)
+      const bassOsc = this.audioContext.createOscillator()
+      bassOsc.type = 'square'
+      bassOsc.frequency.value = chordProgression[0][0] / 2 // Start with C2
+      
+      const bassGain = this.audioContext.createGain()
+      bassGain.gain.value = 0.3
+      bassOsc.connect(bassGain)
+      bassGain.connect(this.backgroundMusicGain)
+      
+      // Schedule bass notes
+      let currentTime = this.audioContext.currentTime
+      for (let i = 0; i < 100; i++) { // Loop many times
+        chordProgression.forEach((chord, idx) => {
+          const time = currentTime + (i * totalDuration) + (idx * chordDuration)
+          bassOsc.frequency.setValueAtTime(chord[0] / 2, time)
+        })
+      }
+      
+      bassOsc.start()
+      this.backgroundMusicOscillators.push(bassOsc)
+
+      // Create chord oscillators (3 voices for harmony)
+      for (let voice = 0; voice < 3; voice++) {
+        const osc = this.audioContext.createOscillator()
+        osc.type = 'square'
+        osc.frequency.value = chordProgression[0][voice]
+        
+        const gain = this.audioContext.createGain()
+        gain.gain.value = 0.15
+        osc.connect(gain)
+        gain.connect(this.backgroundMusicGain)
+        
+        // Schedule chord changes
+        currentTime = this.audioContext.currentTime
+        for (let i = 0; i < 100; i++) { // Loop many times
+          chordProgression.forEach((chord, idx) => {
+            const time = currentTime + (i * totalDuration) + (idx * chordDuration)
+            osc.frequency.setValueAtTime(chord[voice], time)
+          })
+        }
+        
+        osc.start()
+        this.backgroundMusicOscillators.push(osc)
+      }
+
+      // Create melody line
+      const melodyOsc = this.audioContext.createOscillator()
+      melodyOsc.type = 'square'
+      melodyOsc.frequency.value = melodyNotes[0]
+      
+      const melodyGain = this.audioContext.createGain()
+      melodyGain.gain.value = 0.25
+      melodyOsc.connect(melodyGain)
+      melodyGain.connect(this.backgroundMusicGain)
+      
+      // Schedule melody notes
+      currentTime = this.audioContext.currentTime
+      for (let i = 0; i < 100; i++) { // Loop many times
+        melodyNotes.forEach((note, idx) => {
+          const time = currentTime + (i * totalDuration / 4) + (idx * noteDuration)
+          melodyOsc.frequency.setValueAtTime(note, time)
+          
+          // Add envelope for each note
+          melodyGain.gain.setValueAtTime(0.25, time)
+          melodyGain.gain.exponentialRampToValueAtTime(0.1, time + noteDuration * 0.8)
+        })
+      }
+      
+      melodyOsc.start()
+      this.backgroundMusicOscillators.push(melodyOsc)
+
+      // Add arpeggio for texture
+      const arpOsc = this.audioContext.createOscillator()
+      arpOsc.type = 'triangle'
+      arpOsc.frequency.value = 1046.50 // C6
+      
+      const arpGain = this.audioContext.createGain()
+      arpGain.gain.value = 0.08
+      arpOsc.connect(arpGain)
+      arpGain.connect(this.backgroundMusicGain)
+      
+      // Fast arpeggios
+      currentTime = this.audioContext.currentTime
+      const arpSpeed = 0.125
+      for (let i = 0; i < 400; i++) {
+        const chordIdx = Math.floor(i / 16) % chordProgression.length
+        const noteIdx = i % 3
+        const time = currentTime + (i * arpSpeed)
+        arpOsc.frequency.setValueAtTime(chordProgression[chordIdx][noteIdx] * 2, time)
+      }
+      
+      arpOsc.start()
+      this.backgroundMusicOscillators.push(arpOsc)
+
+      this.isMusicPlaying = true
+      this.isMusicPaused = false
+      
+      console.log('[SoundManager] 8-bit background music started')
+    } catch (error) {
+      console.error('[SoundManager] Error starting background music:', error)
+    }
+  }
+
+  stopBackgroundMusic() {
+    if (this.backgroundMusicOscillators.length > 0) {
+      console.log('[SoundManager] Stopping background music')
+      
+      this.backgroundMusicOscillators.forEach(osc => {
+        try {
+          osc.stop()
+        } catch {
+          // Ignore if already stopped
+        }
+      })
+      this.backgroundMusicOscillators = []
+    }
+    
+    if (this.backgroundMusicGain && this.audioContext) {
+      this.backgroundMusicGain.disconnect()
+      this.backgroundMusicGain = null
+    }
+    
+    this.isMusicPlaying = false
+    this.isMusicPaused = false
+  }
+
+  pauseBackgroundMusic() {
+    if (this.backgroundMusicGain && this.audioContext && this.isMusicPlaying && !this.isMusicPaused) {
+      console.log('[SoundManager] Pausing background music')
+      this.backgroundMusicGain.gain.setTargetAtTime(0, this.audioContext.currentTime, 0.1)
+      this.isMusicPaused = true
+    }
+  }
+
+  resumeBackgroundMusic() {
+    if (this.backgroundMusicGain && this.audioContext && this.isMusicPlaying && this.isMusicPaused) {
+      console.log('[SoundManager] Resuming background music')
+      this.backgroundMusicGain.gain.setTargetAtTime(
+        this.musicVolume * this.masterVolume,
+        this.audioContext.currentTime,
+        0.1
+      )
+      this.isMusicPaused = false
+    }
   }
 
   cleanup() {
+    console.log('[SoundManager] Cleanup called')
     this.stopEngineSound()
+    this.stopBackgroundMusic()
     this.sounds.forEach(sound => {
       sound.unload()
     })
     this.sounds.clear()
     
-    if (this.audioContext) {
-      this.audioContext.close()
-    }
+    // Don't close the context - just stop everything
+    // The context will be reused on next initialization
+    this.initialized = false
   }
 }
 
