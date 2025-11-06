@@ -1,6 +1,7 @@
 import styled from '@emotion/styled'
 import { useGameStore } from '@/store/gameStore'
 
+
 const LeaderboardContainer = styled.div`
   position: fixed;
   top: 120px;

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import styled from '@emotion/styled'
 import { useGameStore } from '@/store/gameStore'
+
 import { Confetti } from './Confetti'
 import { Leaderboard } from './Leaderboard'
 
@@ -533,7 +534,7 @@ const PointerLockHint = styled.div`
 `
 
 export const HUD = () => {
-  // Optimize subscriptions - only subscribe to what changes frequently
+  // Optimize subscriptions - use individual selectors for primitives
   const speed = useGameStore(state => state.speed)
   const gameState = useGameStore(state => state.gameState)
   const countdown = useGameStore(state => state.countdown)
@@ -546,22 +547,21 @@ export const HUD = () => {
   const distanceToFinish = useGameStore(state => state.distanceToFinish)
   const playerPosition = useGameStore(state => state.playerPosition)
   const cameraView = useGameStore(state => state.cameraView)
+  const playerState = useGameStore(state => state.playerState)
+  const lastShotTime = useGameStore(state => state.lastShotTime)
+
   const [isPointerLocked, setIsPointerLocked] = useState(false)
   const [showDamageFlash, setShowDamageFlash] = useState(false)
   const prevHealthRef = useRef(playerHealth)
-  
+
   // Get static or infrequent values without subscription
   const maxSpeed = useGameStore.getState().maxSpeed
   const setCountdown = useGameStore.getState().setCountdown
   const startRace = useGameStore.getState().startRace
   const resetGame = useGameStore.getState().resetGame
-  
-  // Get isBoosting and lastShotTime without subscription
-  const isBoosting = useGameStore(state => {
-    const playerState = state.playerState
-    return (playerState & 4) !== 0 // Check BOOSTING flag
-  })
-  const lastShotTime = useGameStore(state => state.lastShotTime)
+
+  const isBoosting = (playerState & 4) !== 0 // Calculate isBoosting locally
+
   
   const speedPercent = (speed / maxSpeed) * 100
   const healthPercent = (playerHealth / playerMaxHealth) * 100

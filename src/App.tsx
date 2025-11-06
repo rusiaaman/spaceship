@@ -5,11 +5,14 @@ import { HUD } from './components/ui/HUD'
 import { MainMenu } from './components/ui/MainMenu'
 import { PauseMenu } from './components/ui/PauseMenu'
 import { PerformanceMonitor } from './components/ui/PerformanceMonitor'
+import { Confetti } from './components/ui/Confetti'
 import { soundManager } from './utils/soundManager'
+
 
 function App() {
   const gameState = useGameStore((state) => state.gameState)
   const setGameState = useGameStore((state) => state.setGameState)
+  const playerPosition = useGameStore((state) => state.playerPosition)
 
   // Start background music when in menu, stop during gameplay
   useEffect(() => {
@@ -42,6 +45,7 @@ function App() {
           {import.meta.env.DEV && <PerformanceMonitor />}
         </>
       )}
+      {gameState === 'finished' && playerPosition <= 3 && <Confetti />}
     </div>
   )
 }
