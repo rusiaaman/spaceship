@@ -315,39 +315,31 @@ const AIManager = () => {
         if (!aiBoosterCooldownRef.current[st.id]) {
           aiBoosterCooldownRef.current[st.id] = 0
         }
-        
+
         const currentTime = raceTime
+        // Use a cooldown to prevent constant re-triggering of the reusable booster effect
         if (currentTime - aiBoosterCooldownRef.current[st.id] >= 0.5) {
           const { BOOSTER_RING_RADIUS, BOOSTER_DURATION, BOOSTER_RADIUS } = GAME_CONSTANTS
           const aiPos = new THREE.Vector3(finalX, 0, st.z)
           const nearbyBoosters = spatialIndices.boosters.queryRadius(aiPos, BOOSTER_RING_RADIUS * 1.5)
-          
+
           for (const booster of nearbyBoosters) {
             const boosterId = booster.id as number
-            const collectedBoosters = useGameStore.getState().collectedBoosters
-            
-            if (collectedBoosters.has(boosterId)) continue
-            
+
+            // Check distance to permanent booster
             const distance = aiPos.distanceTo(booster.position)
             if (distance < BOOSTER_RADIUS + 3) {
-              // AI collected booster
+              // AI collected reusable booster
               aiBoosterCooldownRef.current[st.id] = currentTime
-              
-              // Remove from spatial index
-              spatialIndices.boosters.remove(boosterId)
-              spatialIndices.boosters.rebuild()
-              
-              // Mark as collected so player can't collect it
-              useGameStore.getState().collectBooster(boosterId)
-              
+
               // Boost AI speed
               st.speed = Math.min(st.speed * GAME_CONSTANTS.BOOSTER_SPEED_MULTIPLIER, GAME_CONSTANTS.MAX_SPEED * GAME_CONSTANTS.BOOSTER_SPEED_MULTIPLIER)
-              
+
               // Schedule boost end
               setTimeout(() => {
                 st.speed = st.speed / GAME_CONSTANTS.BOOSTER_SPEED_MULTIPLIER
               }, BOOSTER_DURATION * 1000)
-              
+
               break
             }
           }

@@ -35,46 +35,38 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
     }
   }
 
-  // Use ref to track last collected booster to prevent multiple collections
-  const lastCollectedBoosterRef = useRef<number>(-1)
   const collectionCooldownRef = useRef<number>(0)
-  
+
   const checkBoosterCollision = (position: THREE.Vector3, currentTime: number) => {
     // Cooldown to prevent rapid re-collection
     if (currentTime - collectionCooldownRef.current < 0.5) return
-    
+
     const { BOOSTER_RADIUS, BOOSTER_RING_RADIUS, BOOSTER_DURATION } = GAME_CONSTANTS
-    const { collectedBoosters, collectBooster, activateBoost, spatialIndices } = useGameStore.getState()
-    
+    const { activateBoost, spatialIndices, refillAmmo } = useGameStore.getState() // Added refillAmmo
+
     // Use spatial index for O(log n) booster proximity check
     // Use a wider radius for the initial query to ensure we don't miss boosters
     const nearbyBoosters = spatialIndices.boosters.queryRadius(position, BOOSTER_RING_RADIUS * 1.5)
-    
+
     for (const booster of nearbyBoosters) {
       const boosterId = booster.id as number
-      
-      if (collectedBoosters.has(boosterId) || lastCollectedBoosterRef.current === boosterId) continue
-      
+
+      // Skip checks for collectedBoosters/lastCollectedBoosterRef - now handled solely by collectionCooldownRef
+
       const distance = position.distanceTo(booster.position)
-      
+
       // Use a slightly relaxed threshold to avoid misses at speed
       if (distance < BOOSTER_RADIUS + 3) {
-        console.log('🚀 Booster collected!', boosterId, 'at time:', currentTime)
+        console.log('🚀 Booster re-used!', boosterId, 'at time:', currentTime)
         soundManager.playSound('boost-collect')
-        lastCollectedBoosterRef.current = boosterId
         collectionCooldownRef.current = currentTime
-        
-        // Remove from spatial index first
-        spatialIndices.boosters.remove(boosterId)
-        // Rebuild immediately so subsequent queries don't see this booster
-        spatialIndices.boosters.rebuild()
-        
-        // Batch the state updates
-        collectBooster(boosterId)
+
+        // Apply the effect: activate boost and refill ammo (the previous side effect of collection)
         activateBoost(BOOSTER_DURATION)
-        
-        console.log('✅ Boost activated! Duration:', BOOSTER_DURATION, 'End time:', currentTime + BOOSTER_DURATION)
-        
+        refillAmmo()
+
+        console.log('✅ Boost activated and Ammo refilled! Duration:', BOOSTER_DURATION, 'End time:', currentTime + BOOSTER_DURATION)
+
         break
       }
     }

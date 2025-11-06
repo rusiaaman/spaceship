@@ -7,24 +7,7 @@ import * as THREE from 'three'
 const BoosterManagerComponent = () => {
   const { BOOSTER_COUNT, BOOSTER_RADIUS, RACE_DISTANCE } = GAME_CONSTANTS
   const gameState = useGameStore((state) => state.gameState)
-  // Subscribe to collectedBoosters here so only one subscriber handles visibility updates.
-  const collectedBoosters = useGameStore((state) => state.collectedBoosters)
-  const refillAmmo = useGameStore((state) => state.refillAmmo)
-  
-  // Track previous collected count to detect new collections
-  const prevCollectedCount = useRef(0)
-  
-  useEffect(() => {
-    if (gameState === 'playing') {
-      const currentCount = collectedBoosters.size
-      if (currentCount > prevCollectedCount.current) {
-        // A booster was just collected, refill ammo
-        refillAmmo()
-      }
-      prevCollectedCount.current = currentCount
-    }
-  }, [collectedBoosters.size, gameState, refillAmmo])
-  
+
   // Generate booster positions along the track
   const boosterPositions = useMemo(() => {
     const positions: Array<{ id: number; position: [number, number, number] }> = []
@@ -67,16 +50,13 @@ const BoosterManagerComponent = () => {
 
   return (
     <group>
-      {boosterPositions
-        .filter((b) => !collectedBoosters.has(b.id))
-        .map((booster) => (
-          <SpeedBooster
-            key={booster.id}
-            id={booster.id}
-            position={booster.position}
-          />
-        ))
-      }
+      {boosterPositions.map((booster) => (
+        <SpeedBooster
+          key={booster.id}
+          id={booster.id}
+          position={booster.position}
+        />
+      ))}
     </group>
   )
 }

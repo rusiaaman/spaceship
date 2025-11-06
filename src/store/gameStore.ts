@@ -78,8 +78,7 @@ interface GameStore {
   boostEndTime: number
   playerInvulnerableUntil: number // Time when player invulnerability ends
   playerRespawnTime: number // Time when player respawn delay ends
-  collectedBoosters: Set<number>
-  
+
   // Combat state - optimized with typed arrays
   playerHealth: number
   playerMaxHealth: number
@@ -114,10 +113,9 @@ interface GameStore {
   setDistanceToFinish: (distance: number) => void
   setAIStandings: (standings: AIStanding[]) => void
   setPlayerPosition: (position: number) => void
-  activateBoost: (duration: number) => void
-  deactivateBoost: () => void
-  collectBooster: (id: number) => void
-  startRace: () => void
+    activateBoost: (duration: number) => void
+    deactivateBoost: () => void
+    startRace: () => void
   finishRace: (time: number) => void
   resetGame: () => void
   
@@ -166,8 +164,7 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
   boostEndTime: 0,
   playerInvulnerableUntil: 0,
   playerRespawnTime: 0,
-  collectedBoosters: new Set(),
-  
+
   // Combat state - optimized with typed arrays
   playerHealth: 100,
   playerMaxHealth: 100,
@@ -238,12 +235,6 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
   deactivateBoost: () => set((state) => ({
     playerState: BitFlagUtils.clear(state.playerState, ShipState.BOOSTING)
   })),
-  collectBooster: (id) => set((state) => {
-    // Create a new Set to trigger reactivity
-    const newSet = new Set(state.collectedBoosters)
-    newSet.add(id)
-    return { collectedBoosters: newSet }
-  }),
   startRace: () => set({ gameState: 'playing', isRaceStarted: true, countdown: 0 }),
   finishRace: (finishTime) => set({ gameState: 'finished', finishTime }),
   resetGame: () => {
@@ -270,10 +261,9 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
       playerPosition: 1,
       playerState: ShipState.ACTIVE,
       boostEndTime: 0,
-      playerInvulnerableUntil: 0,
-      playerRespawnTime: 0,
-      collectedBoosters: new Set(),
-      playerHealth: 100,
+            playerInvulnerableUntil: 0,
+            playerRespawnTime: 0,
+            playerHealth: 100,
       playerAmmo: 30,
       aiHealthArray: new Float32Array(GAME_CONSTANTS.AI_COUNT).fill(100),
       aiMaxHealthArray: new Float32Array(GAME_CONSTANTS.AI_COUNT).fill(100),
@@ -699,7 +689,7 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
   setGameState: (gameState) => {
     // Reset countdown when entering countdown state
     if (gameState === 'countdown') {
-      set({ gameState, countdown: 3, collectedBoosters: new Set() });
+      set({ gameState, countdown: 3 });
     } else {
       set({ gameState });
     }
