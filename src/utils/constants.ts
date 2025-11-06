@@ -47,6 +47,9 @@ export const GAME_CONSTANTS = {
   AI_ACCURACY: 0.85, // 85% accuracy - better aim
   AI_FIRE_RATE: 0.5, // seconds between shots - faster firing
   
+  // Player Combat & Respawn
+  PLAYER_RESPAWN_INVULNERABILITY_DURATION: 3.0,
+  
   // Visual
   MAX_ACTIVE_PROJECTILES: 40, // Further reduced for better performance
 } as const

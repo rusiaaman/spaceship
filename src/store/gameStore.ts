@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { GAME_CONSTANTS } from '@/utils/constants'
 import { profiler } from '@/utils/profiler'
 import { ObjectPool } from '@/utils/ObjectPool'
+import { soundManager } from '@/utils/soundManager'
 import { EventScheduler, GameEventType } from '@/utils/PriorityQueue'
 import { GameSpatialIndices } from '@/utils/SpatialIndex'
 import { ShipState, ProjectileState, BitFlagUtils } from '@/utils/BitFlags'
@@ -75,6 +76,7 @@ interface GameStore {
   playerPosition: number
   playerState: number // Bit flags: ShipState
   boostEndTime: number
+  playerInvulnerableUntil: number // Time when player invulnerability ends
   collectedBoosters: Set<number>
   
   // Combat state - optimized with typed arrays
@@ -128,6 +130,7 @@ interface GameStore {
   getAISpeedReduction: (id: number) => number
   updateAISpeedReduction: (delta: number) => void
   isAIInvulnerable: (id: number) => boolean
+  isPlayerInvulnerable: () => boolean
   updateAIRespawns: (delta: number, currentTime: number) => void
   setAIRespawnPosition: (id: number, x: number, z: number) => void
   getAIRespawnPosition: (id: number) => { x: number; z: number } | undefined
@@ -159,6 +162,7 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
   playerPosition: 1,
   playerState: ShipState.ACTIVE,
   boostEndTime: 0,
+  playerInvulnerableUntil: 0,
   collectedBoosters: new Set(),
   
   // Combat state - optimized with typed arrays
@@ -263,6 +267,7 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
       playerPosition: 1,
       playerState: ShipState.ACTIVE,
       boostEndTime: 0,
+      playerInvulnerableUntil: 0,
       collectedBoosters: new Set(),
       playerHealth: 100,
       playerAmmo: 30,
@@ -400,12 +405,34 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
   damageShip: (targetId, damage) => {
     set((state) => {
       if (targetId === 'player') {
+        const currentTime = state.raceTime
+        
+        // 1. Check for invulnerability
+        if (currentTime < state.playerInvulnerableUntil) {
+          return {} // Invulnerable: no damage taken
+        }
+
         const newHealth = Math.max(0, state.playerHealth - damage)
         let newPlayerState = state.playerState
-        
+        let newInvulnerableUntil = state.playerInvulnerableUntil
+        let finalHealth = newHealth
+
         if (newHealth <= 0) {
-          newPlayerState = BitFlagUtils.set(newPlayerState, ShipState.DESTROYED)
+          // Player Destroyed/Respawn sequence
+          soundManager.playSound('explosion')
+          
+          // Reset health and set invulnerability
+          const maxHealth = state.playerMaxHealth
+          const respawnDuration = GAME_CONSTANTS.PLAYER_RESPAWN_INVULNERABILITY_DURATION
+          
+          newPlayerState = BitFlagUtils.clear(newPlayerState, ShipState.DESTROYED | ShipState.DAMAGED)
+          newPlayerState = BitFlagUtils.set(newPlayerState, ShipState.ACTIVE | ShipState.INVULNERABLE)
+          
+          newInvulnerableUntil = currentTime + respawnDuration
+          finalHealth = maxHealth // Reset health
+
         } else {
+          // Player damaged but still alive
           newPlayerState = BitFlagUtils.set(newPlayerState, ShipState.DAMAGED)
         }
         
@@ -415,8 +442,9 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
         state.updateKillStreak(false)
         
         return {
-          playerHealth: newHealth,
-          playerState: newPlayerState
+          playerHealth: finalHealth,
+          playerState: newPlayerState,
+          playerInvulnerableUntil: newInvulnerableUntil
         }
       } else {
         // Check if AI is invulnerable (blinking after respawn)
@@ -491,6 +519,11 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
       
       return { aiSpeedReductionArray: newSpeedArray }
     })
+  },
+  
+  isPlayerInvulnerable: () => {
+    const state = useGameStore.getState()
+    return state.raceTime < state.playerInvulnerableUntil
   },
   
   isAIInvulnerable: (id) => {

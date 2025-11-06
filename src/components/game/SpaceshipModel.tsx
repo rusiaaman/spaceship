@@ -62,6 +62,7 @@ export const SpaceshipModel = ({ spaceshipRef }: SpaceshipModelProps) => {
   }, [gltf.scene])
   
   // Only render in third-person view
+  // We only subscribe to cameraView here to minimize component re-renders.
   const cameraView = useGameStore(state => state.cameraView)
   
   useEffect(() => {
@@ -72,9 +73,25 @@ export const SpaceshipModel = ({ spaceshipRef }: SpaceshipModelProps) => {
   useFrame(() => {
     if (!modelRef.current || !spaceshipRef.current) return
     
+    // Access state directly inside useFrame for high-frequency updates (raceTime)
+    const { raceTime, playerInvulnerableUntil } = useGameStore.getState()
+    
     // Sync model position and rotation with the spaceship controller
     modelRef.current.position.copy(spaceshipRef.current.position)
     modelRef.current.rotation.copy(spaceshipRef.current.rotation)
+    
+    // --- Invulnerability Blinking Effect ---
+    const isInvulnerable = raceTime < playerInvulnerableUntil;
+
+    if (isInvulnerable) {
+      // Toggle visibility every 0.1 seconds
+      const blinkFrequency = 0.1;
+      const isVisible = (Math.floor(raceTime / blinkFrequency) % 2) === 0;
+      modelRef.current.visible = isVisible;
+    } else {
+      // Ensure visibility is always true when not invulnerable
+      modelRef.current.visible = true;
+    }
     
     // Update weapon system player position to match the visible model
     if ((window as any).__weaponSystemRefs) {
@@ -82,6 +99,8 @@ export const SpaceshipModel = ({ spaceshipRef }: SpaceshipModelProps) => {
     }
   })
   
+  // Model visibility is now controlled inside useFrame using modelRef.current.visible.
+  // We only return null if the camera view is not third-person.
   if (cameraView !== 'third-person') return null
   
   return (

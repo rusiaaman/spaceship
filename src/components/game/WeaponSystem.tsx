@@ -18,11 +18,8 @@ const sharedBeamGeometry = new THREE.CylinderGeometry(
 )
 sharedBeamGeometry.rotateX(Math.PI / 2)
 
-// Reusable temp vectors for calculations (avoid allocations)
-const tempVector1 = new THREE.Vector3()
-const tempVector2 = new THREE.Vector3()
-const tempQuat = new THREE.Quaternion()
-const upVector = new THREE.Vector3(0, 0, 1)
+// Constant vector
+const upVector = new THREE.Vector3(0, 0, 1) // World Y axis for cylinder orientation
 
 export const WeaponSystem = () => {
   const activeProjectiles = useGameStore(state => state.activeProjectiles)
@@ -32,6 +29,7 @@ export const WeaponSystem = () => {
   const getAIHealth = useGameStore(state => state.getAIHealth)
   const incrementHitsLanded = useGameStore(state => state.incrementHitsLanded)
   const gameState = useGameStore(state => state.gameState)
+  const isPlayerInvulnerable = useGameStore(state => state.isPlayerInvulnerable)
   
   // Store refs for AI ship positions (will be updated from RaceElements)
   const aiShipPositionsRef = useRef<Map<number, THREE.Vector3>>(new Map())
@@ -116,11 +114,20 @@ export const WeaponSystem = () => {
       } else {
         // Check collision with player
         const distSq = projectile.position.distanceToSquared(playerPositionRef.current)
+        
         if (distSq < collisionRadius * collisionRadius) {
+          // Projectile hit the player
+          projectilesToRemove.push(projectile.id) // Projectile is removed on hit, regardless of invulnerability
+          
+          if (isPlayerInvulnerable()) {
+            // If invulnerable, skip sound and damage application
+            console.log('[WeaponSystem] AI projectile hit player, but player is invulnerable.')
+            continue
+          }
+          
+          // Apply damage if not invulnerable
           soundManager.playSound('ship-damage')
           damageShip('player', GAME_CONSTANTS.PROJECTILE_DAMAGE)
-          projectilesToRemove.push(projectile.id)
-          // Note: We don't track AI hits on player as player stats
         }
       }
     }
@@ -169,29 +176,26 @@ interface LaserBeamProps {
 const LaserBeam = ({ projectile }: LaserBeamProps) => {
   const groupRef = useRef<THREE.Group>(null)
   
-  // Pre-calculate and cache initial values
-  const initialData = useMemo(() => {
-    const dir = tempVector1.copy(projectile.direction).normalize()
-    const pos = tempVector2.copy(dir).multiplyScalar(beamLength / 2).add(projectile.position)
-    const quat = new THREE.Quaternion().setFromUnitVectors(upVector, dir)
-    return { position: pos.clone(), quaternion: quat.clone() }
-  }, [projectile.id]) // Only recalculate if projectile ID changes (never)
+  // Local temporary mutable objects for calculations within useFrame
+  const localTempVec1 = useRef(new THREE.Vector3()).current
+  const localTempVec2 = useRef(new THREE.Vector3()).current
+  const localTempQuat = useRef(new THREE.Quaternion()).current
   
   useFrame(() => {
     if (!groupRef.current) return
     
     // Calculate beam position (slightly ahead in direction)
-    tempVector1.copy(projectile.direction).normalize().multiplyScalar(beamLength / 2)
-    groupRef.current.position.copy(projectile.position).add(tempVector1)
+    localTempVec1.copy(projectile.direction).normalize().multiplyScalar(beamLength / 2)
+    groupRef.current.position.copy(projectile.position).add(localTempVec1)
     
     // Calculate beam orientation
-    tempVector2.copy(projectile.direction).normalize()
-    tempQuat.setFromUnitVectors(upVector, tempVector2)
-    groupRef.current.quaternion.copy(tempQuat)
+    localTempVec2.copy(projectile.direction).normalize()
+    localTempQuat.setFromUnitVectors(upVector, localTempVec2)
+    groupRef.current.quaternion.copy(localTempQuat)
   })
 
   return (
-    <group ref={groupRef} position={initialData.position} quaternion={initialData.quaternion}>
+    <group ref={groupRef}>
       {/* Single optimized beam - removed glow layer and point light for performance */}
       <mesh geometry={sharedBeamGeometry}>
         <meshBasicMaterial

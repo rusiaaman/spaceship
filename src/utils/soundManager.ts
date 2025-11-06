@@ -1,7 +1,4 @@
-import { Howl } from 'howler'
-
 class SoundManager {
-  private sounds: Map<string, Howl> = new Map()
   private masterVolume: number = 0.7
   private sfxVolume: number = 0.8
   private initialized: boolean = false
@@ -46,45 +43,12 @@ class SoundManager {
       
       console.log('[SoundManager] AudioContext state:', this.audioContext.state)
       
-      // Create simple sound effects using Howler with data URIs
-      this.createSoundEffects()
+      // All sound effects and music are now generated programmatically using the Web Audio API.
       
       console.log('[SoundManager] Sounds initialized successfully')
     } catch (error) {
       console.error('[SoundManager] Failed to initialize:', error)
     }
-  }
-
-  private createSoundEffects() {
-    // Create simple beep sounds using data URIs
-    // These are very simple sine wave beeps
-    
-    // Boost collect sound - ascending tone
-    const boostBeep = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA='
-    this.sounds.set('boost-collect', new Howl({
-      src: [boostBeep],
-      volume: 0.5 * this.sfxVolume * this.masterVolume,
-      onloaderror: (_id, error) => console.error('[SoundManager] Failed to load boost-collect:', error),
-      onload: () => console.log('[SoundManager] boost-collect loaded')
-    }))
-
-    // Weapon fire sound
-    this.sounds.set('weapon-fire', new Howl({
-      src: [boostBeep],
-      volume: 0.3 * this.sfxVolume * this.masterVolume,
-      rate: 0.8,
-      onloaderror: (_id, error) => console.error('[SoundManager] Failed to load weapon-fire:', error),
-      onload: () => console.log('[SoundManager] weapon-fire loaded')
-    }))
-
-    // Hit sound
-    this.sounds.set('hit', new Howl({
-      src: [boostBeep],
-      volume: 0.4 * this.sfxVolume * this.masterVolume,
-      rate: 0.6,
-      onloaderror: (_id, error) => console.error('[SoundManager] Failed to load hit:', error),
-      onload: () => console.log('[SoundManager] hit loaded')
-    }))
   }
 
   // Engine sound using Web Audio API oscillators
@@ -517,10 +481,6 @@ class SoundManager {
     console.log('[SoundManager] Cleanup called')
     this.stopEngineSound()
     this.stopBackgroundMusic()
-    this.sounds.forEach(sound => {
-      sound.unload()
-    })
-    this.sounds.clear()
     
     // Don't close the context - just stop everything
     // The context will be reused on next initialization

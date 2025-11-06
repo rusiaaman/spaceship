@@ -150,7 +150,8 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
           // Use local forward direction for shooting
           const shootDirection = new THREE.Vector3(0, 0, -1).applyQuaternion(spaceship.quaternion)
           
-          const spawnOffset = shootDirection.clone().multiplyScalar(5)
+          // Use a spawn offset larger than SHIP_COLLISION_RADIUS (6 units) to prevent self-collision on fire
+          const spawnOffset = shootDirection.clone().multiplyScalar(8)
           const spawnPosition = spaceship.position.clone().add(spawnOffset)
           
           soundManager.playSound('weapon-fire')

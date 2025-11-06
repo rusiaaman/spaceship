@@ -15,7 +15,8 @@ export const ShipState = {
   DESTROYED: 1 << 4,   // 16
   EVADING: 1 << 5,     // 32
   PURSUING: 1 << 6,    // 64
-  FORMATION: 1 << 7    // 128
+  FORMATION: 1 << 7,    // 128
+  INVULNERABLE: 1 << 8 // 256
 } as const
 
 /**
