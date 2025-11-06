@@ -80,9 +80,15 @@ interface GameStore {
   // Combat state - optimized with typed arrays
   playerHealth: number
   playerMaxHealth: number
+  playerAmmo: number
+  playerMaxAmmo: number
   aiHealthArray: Float32Array // Indexed by AI id
+  aiMaxHealthArray: Float32Array // Indexed by AI id
   aiSpeedReductionArray: Float32Array // Indexed by AI id
   aiStateArray: Uint16Array // Bit flags for each AI
+  aiRespawnTimers: Float32Array // Indexed by AI id - time when respawn completes
+  aiInvulnerableUntil: Float32Array // Indexed by AI id - time when invulnerability ends
+  aiRespawnPositions: Map<number, { x: number; z: number }> // Store respawn positions
   activeProjectiles: Projectile[]
   lastShotTime: number
   lastAIShotTimes: Float32Array // Indexed by AI id
@@ -118,8 +124,14 @@ interface GameStore {
   removeProjectile: (id: string) => void
   damageShip: (targetId: number | 'player', damage: number) => void
   getAIHealth: (id: number) => number
+  getAIMaxHealth: (id: number) => number
   getAISpeedReduction: (id: number) => number
   updateAISpeedReduction: (delta: number) => void
+  isAIInvulnerable: (id: number) => boolean
+  updateAIRespawns: (delta: number, currentTime: number) => void
+  setAIRespawnPosition: (id: number, x: number, z: number) => void
+  getAIRespawnPosition: (id: number) => { x: number; z: number } | undefined
+  refillAmmo: () => void
   
   // Combat stats actions
   incrementKills: () => void
@@ -152,9 +164,15 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
   // Combat state - optimized with typed arrays
   playerHealth: 100,
   playerMaxHealth: 100,
+  playerAmmo: 30,
+  playerMaxAmmo: 30,
   aiHealthArray: new Float32Array(GAME_CONSTANTS.AI_COUNT).fill(100),
+  aiMaxHealthArray: new Float32Array(GAME_CONSTANTS.AI_COUNT).fill(100),
   aiSpeedReductionArray: new Float32Array(GAME_CONSTANTS.AI_COUNT).fill(0),
   aiStateArray: new Uint16Array(GAME_CONSTANTS.AI_COUNT).fill(ShipState.ACTIVE),
+  aiRespawnTimers: new Float32Array(GAME_CONSTANTS.AI_COUNT).fill(0),
+  aiInvulnerableUntil: new Float32Array(GAME_CONSTANTS.AI_COUNT).fill(0),
+  aiRespawnPositions: new Map(),
   activeProjectiles: [],
   lastShotTime: 0,
   lastAIShotTimes: new Float32Array(GAME_CONSTANTS.AI_COUNT).fill(0),
@@ -247,9 +265,14 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
       boostEndTime: 0,
       collectedBoosters: new Set(),
       playerHealth: 100,
+      playerAmmo: 30,
       aiHealthArray: new Float32Array(GAME_CONSTANTS.AI_COUNT).fill(100),
+      aiMaxHealthArray: new Float32Array(GAME_CONSTANTS.AI_COUNT).fill(100),
       aiSpeedReductionArray: new Float32Array(GAME_CONSTANTS.AI_COUNT).fill(0),
       aiStateArray: new Uint16Array(GAME_CONSTANTS.AI_COUNT).fill(ShipState.ACTIVE),
+      aiRespawnTimers: new Float32Array(GAME_CONSTANTS.AI_COUNT).fill(0),
+      aiInvulnerableUntil: new Float32Array(GAME_CONSTANTS.AI_COUNT).fill(0),
+      aiRespawnPositions: new Map(),
       activeProjectiles: [],
       lastShotTime: 0,
       lastAIShotTimes: new Float32Array(GAME_CONSTANTS.AI_COUNT).fill(0),
@@ -271,13 +294,20 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
     const state = useGameStore.getState()
     const currentTime = state.raceTime
     
-    // Check fire rate
+    // Check fire rate and ammo
     if (isPlayer) {
       if (currentTime - state.lastShotTime < 0.1) {
         profiler.end('GameStore.fireProjectile')
         return
       }
-      set({ lastShotTime: currentTime })
+      if (state.playerAmmo <= 0) {
+        profiler.end('GameStore.fireProjectile')
+        return
+      }
+      set({ 
+        lastShotTime: currentTime,
+        playerAmmo: state.playerAmmo - 1
+      })
       // Track player shots
       state.incrementShotsFired()
     }
@@ -389,24 +419,34 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
           playerState: newPlayerState
         }
       } else {
+        // Check if AI is invulnerable (blinking after respawn)
+        if (state.isAIInvulnerable(targetId)) {
+          return {} // No damage during invulnerability
+        }
+        
         // Use typed arrays for AI
         const newHealthArray = state.aiHealthArray.slice()
         const newSpeedArray = state.aiSpeedReductionArray.slice()
         const newStateArray = state.aiStateArray.slice()
+        const newRespawnTimers = state.aiRespawnTimers.slice()
+        const newInvulnerableUntil = state.aiInvulnerableUntil.slice()
         
         const currentHealth = newHealthArray[targetId]
         const wasAlive = currentHealth > 0
         newHealthArray[targetId] = Math.max(0, currentHealth - damage)
         const isNowDead = newHealthArray[targetId] <= 0
         
-        if (isNowDead) {
+        if (isNowDead && wasAlive) {
+          // Mark as destroyed and schedule respawn
           newStateArray[targetId] = BitFlagUtils.set(newStateArray[targetId], ShipState.DESTROYED)
-          // Track kill if this was the killing blow
-          if (wasAlive) {
-            state.incrementKills()
-            state.updateKillStreak(true)
-          }
-        } else {
+          newRespawnTimers[targetId] = state.raceTime + 1.0 // Respawn after 1 second
+          
+          // Note: Respawn position is stored by RaceElements when AI is destroyed
+          
+          // Track kill
+          state.incrementKills()
+          state.updateKillStreak(true)
+        } else if (!isNowDead) {
           const currentReduction = newSpeedArray[targetId]
           newSpeedArray[targetId] = Math.min(0.7, currentReduction + 0.35)
           newStateArray[targetId] = BitFlagUtils.set(newStateArray[targetId], ShipState.DAMAGED)
@@ -418,7 +458,9 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
         return {
           aiHealthArray: newHealthArray,
           aiSpeedReductionArray: newSpeedArray,
-          aiStateArray: newStateArray
+          aiStateArray: newStateArray,
+          aiRespawnTimers: newRespawnTimers,
+          aiInvulnerableUntil: newInvulnerableUntil
         }
       }
     })
@@ -426,6 +468,10 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
   
   getAIHealth: (id): number => {
     return useGameStore.getState().aiHealthArray[id] ?? 100
+  },
+  
+  getAIMaxHealth: (id): number => {
+    return useGameStore.getState().aiMaxHealthArray[id] ?? 100
   },
   
   getAISpeedReduction: (id) => {
@@ -445,6 +491,64 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
       
       return { aiSpeedReductionArray: newSpeedArray }
     })
+  },
+  
+  isAIInvulnerable: (id) => {
+    const state = useGameStore.getState()
+    return state.raceTime < state.aiInvulnerableUntil[id]
+  },
+  
+  updateAIRespawns: (_delta, currentTime) => {
+    set((state) => {
+      const newHealthArray = state.aiHealthArray.slice()
+      const newStateArray = state.aiStateArray.slice()
+      const newInvulnerableUntil = state.aiInvulnerableUntil.slice()
+      const newRespawnTimers = state.aiRespawnTimers.slice()
+      
+      let changed = false
+      
+      for (let i = 0; i < newRespawnTimers.length; i++) {
+        // Check if this AI should respawn
+        if (newRespawnTimers[i] > 0 && currentTime >= newRespawnTimers[i]) {
+          // Respawn the AI
+          newHealthArray[i] = state.aiMaxHealthArray[i]
+          newStateArray[i] = BitFlagUtils.clear(newStateArray[i], ShipState.DESTROYED)
+          newStateArray[i] = BitFlagUtils.set(newStateArray[i], ShipState.ACTIVE)
+          newRespawnTimers[i] = 0
+          newInvulnerableUntil[i] = currentTime + 2.0 // 2 seconds of invulnerability
+          changed = true
+        }
+      }
+      
+      if (changed) {
+        return {
+          aiHealthArray: newHealthArray,
+          aiStateArray: newStateArray,
+          aiInvulnerableUntil: newInvulnerableUntil,
+          aiRespawnTimers: newRespawnTimers
+        }
+      }
+      
+      return {}
+    })
+  },
+  
+  refillAmmo: () => {
+    set((state) => ({
+      playerAmmo: state.playerMaxAmmo
+    }))
+  },
+  
+  setAIRespawnPosition: (id, x, z) => {
+    set((state) => {
+      const newPositions = new Map(state.aiRespawnPositions)
+      newPositions.set(id, { x, z })
+      return { aiRespawnPositions: newPositions }
+    })
+  },
+  
+  getAIRespawnPosition: (id) => {
+    return useGameStore.getState().aiRespawnPositions.get(id)
   },
   // Combat stats actions
   incrementKills: () => set((state) => ({

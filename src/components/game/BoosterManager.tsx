@@ -1,4 +1,4 @@
-import { useMemo, memo, useEffect } from 'react'
+import { useMemo, memo, useEffect, useRef } from 'react'
 import { SpeedBooster } from './SpeedBooster'
 import { GAME_CONSTANTS } from '@/utils/constants'
 import { useGameStore } from '@/store/gameStore'
@@ -9,6 +9,21 @@ const BoosterManagerComponent = () => {
   const gameState = useGameStore((state) => state.gameState)
   // Subscribe to collectedBoosters here so only one subscriber handles visibility updates.
   const collectedBoosters = useGameStore((state) => state.collectedBoosters)
+  const refillAmmo = useGameStore((state) => state.refillAmmo)
+  
+  // Track previous collected count to detect new collections
+  const prevCollectedCount = useRef(0)
+  
+  useEffect(() => {
+    if (gameState === 'playing') {
+      const currentCount = collectedBoosters.size
+      if (currentCount > prevCollectedCount.current) {
+        // A booster was just collected, refill ammo
+        refillAmmo()
+      }
+      prevCollectedCount.current = currentCount
+    }
+  }, [collectedBoosters.size, gameState, refillAmmo])
   
   // Generate booster positions along the track
   const boosterPositions = useMemo(() => {

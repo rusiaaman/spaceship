@@ -88,6 +88,10 @@ export const WeaponSystem = () => {
           const health = getAIHealth(aiId)
           if (health <= 0) continue // Skip destroyed ships
           
+          // Skip invulnerable ships (blinking after respawn)
+          const isInvulnerable = useGameStore.getState().isAIInvulnerable(aiId)
+          if (isInvulnerable) continue
+          
           // Precise collision check
           const distSq = projectile.position.distanceToSquared(ship.position)
           const totalRadiusSq = (collisionRadius + ship.radius) ** 2

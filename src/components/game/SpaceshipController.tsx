@@ -95,7 +95,7 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
     }
     
     // Get frequently updated state and setters inside useFrame
-    const { speed, setRaceTime, setSpeed, setDistanceToFinish, aiStandings, setPlayerPosition, playerState, boostEndTime, deactivateBoost, raceTime, fireProjectile, maxSpeed } = useGameStore.getState();
+    const { speed, setRaceTime, setSpeed, setDistanceToFinish, aiStandings, setPlayerPosition, playerState, boostEndTime, deactivateBoost, raceTime, fireProjectile, maxSpeed, playerAmmo } = useGameStore.getState();
     
     // Update engine sound based on speed
     soundManager.updateEngineSound(speed, maxSpeed, BitFlagUtils.has(playerState, ShipState.BOOSTING))
@@ -145,17 +145,16 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
         
         // --- Shooting ---
         // Fire continuously while shoot button is held (allows burst shooting)
-        if (controls.shoot) {
+        if (controls.shoot && playerAmmo > 0) {
           profiler.start('SpaceshipController.shooting')
-          const direction = new THREE.Vector3()
-          spaceship.getWorldDirection(direction)
-          direction.negate() // Forward direction
+          // Use local forward direction for shooting
+          const shootDirection = new THREE.Vector3(0, 0, -1).applyQuaternion(spaceship.quaternion)
           
-          const spawnOffset = direction.clone().multiplyScalar(5)
+          const spawnOffset = shootDirection.clone().multiplyScalar(5)
           const spawnPosition = spaceship.position.clone().add(spawnOffset)
           
           soundManager.playSound('weapon-fire')
-          fireProjectile(spawnPosition, direction, true)
+          fireProjectile(spawnPosition, shootDirection, true)
           profiler.end('SpaceshipController.shooting')
         }
         lastShootStateRef.current = controls.shoot
@@ -192,56 +191,66 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
         const keyboardRotationSpeed = rotationSpeed * 60 * delta; // Normalized for 60fps
         const mouseSensitivity = 0.002; // Sensitivity for mouse delta
 
-        // Keyboard rotation - direct control
+        // Yaw rotation (left/right) - always around world Y axis
+        let yawDelta = 0;
         if (controls.left) {
-          spaceship.rotation.y += keyboardRotationSpeed;
+          yawDelta += keyboardRotationSpeed;
         }
         if (controls.right) {
-          spaceship.rotation.y -= keyboardRotationSpeed;
+          yawDelta -= keyboardRotationSpeed;
         }
+        if (Math.abs(controls.mouseDeltaX) < 100) {
+          yawDelta -= controls.mouseDeltaX * mouseSensitivity;
+        }
+        
+        if (yawDelta !== 0) {
+          spaceship.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), yawDelta);
+        }
+
+        // Pitch rotation (up/down) - around local X axis for consistent behavior
+        let pitchDelta = 0;
         if (controls.up) {
-          spaceship.rotation.x -= keyboardRotationSpeed;
+          pitchDelta -= keyboardRotationSpeed;
         }
         if (controls.down) {
-          spaceship.rotation.x += keyboardRotationSpeed;
+          pitchDelta += keyboardRotationSpeed;
+        }
+        if (Math.abs(controls.mouseDeltaY) < 100) {
+          pitchDelta -= controls.mouseDeltaY * mouseSensitivity;
+        }
+        
+        if (pitchDelta !== 0) {
+          // Apply pitch rotation around local X axis
+          const localXAxis = new THREE.Vector3(1, 0, 0);
+          spaceship.rotateOnAxis(localXAxis, pitchDelta);
         }
 
-        // Mouse rotation - relative movement with smoothing
-        const maxMouseDelta = 100; // Prevent extreme values
-        if (Math.abs(controls.mouseDeltaX) < maxMouseDelta && Math.abs(controls.mouseDeltaY) < maxMouseDelta) {
-          if (controls.mouseDeltaX !== 0 || controls.mouseDeltaY !== 0) {
-            spaceship.rotation.y -= controls.mouseDeltaX * mouseSensitivity;
-            spaceship.rotation.x -= controls.mouseDeltaY * mouseSensitivity;
-          }
-        }
-
-        // Clamp pitch to prevent extreme flipping but allow more freedom
-        spaceship.rotation.x = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, spaceship.rotation.x));
+        // Clamp pitch to prevent extreme flipping
+        // Extract pitch from quaternion to clamp it properly
+        const euler = new THREE.Euler().setFromQuaternion(spaceship.quaternion, 'YXZ');
+        euler.x = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, euler.x));
+        spaceship.quaternion.setFromEuler(euler);
         
         // Gentler auto-leveling - only when not actively controlling
         const isActivelyPitching = controls.up || controls.down || Math.abs(controls.mouseDeltaY) > 0.5;
         if (!isActivelyPitching && !controls.forward) {
           // Gentle damping to return to level flight
-          spaceship.rotation.x = THREE.MathUtils.damp(spaceship.rotation.x, 0, 3, delta);
+          const currentEuler = new THREE.Euler().setFromQuaternion(spaceship.quaternion, 'YXZ');
+          currentEuler.x = THREE.MathUtils.damp(currentEuler.x, 0, 3, delta);
+          spaceship.quaternion.setFromEuler(currentEuler);
         }
-        
-        // Ensure rotation values are valid (prevent NaN)
-        if (!isFinite(spaceship.rotation.x)) spaceship.rotation.x = 0;
-        if (!isFinite(spaceship.rotation.y)) spaceship.rotation.y = 0;
-        if (!isFinite(spaceship.rotation.z)) spaceship.rotation.z = 0;
 
         // --- Position ---
-        const direction = new THREE.Vector3();
-        spaceship.getWorldDirection(direction);
-        
-        // Invert direction so forward movement goes into the star field (negative Z)
-        direction.negate();
+        // Use local forward direction (always -Z in local space) for consistent controls
+        // This fixes the issue where controls invert when facing backwards
+        const localForward = new THREE.Vector3(0, 0, -1);
+        const worldDirection = localForward.applyQuaternion(spaceship.quaternion);
         
         // Constrain movement to XZ plane to prevent vertical drift
-        direction.y = 0;
-        direction.normalize();
+        worldDirection.y = 0;
+        worldDirection.normalize();
         
-        velocity.copy(direction).multiplyScalar(targetSpeed * delta);
+        velocity.copy(worldDirection).multiplyScalar(targetSpeed * delta);
         spaceship.position.add(velocity);
         
         // Keep spaceship at a consistent height (prevent sinking or floating)
@@ -251,7 +260,7 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
         // Check for booster collision every frame for responsive detection
         if (isRaceStarted) {
           profiler.start('SpaceshipController.boosterCheck')
-          const projectedPos = spaceship.position.clone().add(direction.clone().multiplyScalar(5));
+          const projectedPos = spaceship.position.clone().add(worldDirection.clone().multiplyScalar(5));
           checkBoosterCollision(projectedPos, raceTime);
           profiler.end('SpaceshipController.boosterCheck')
         }

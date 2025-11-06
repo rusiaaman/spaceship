@@ -102,6 +102,10 @@ const AIManager = () => {
   const fireProjectile = useGameStore((s) => s.fireProjectile)
   const spatialIndices = useGameStore((s) => s.spatialIndices)
   const aiStateArray = useGameStore((s) => s.aiStateArray)
+  const updateAIRespawns = useGameStore((s) => s.updateAIRespawns)
+  const isAIInvulnerable = useGameStore((s) => s.isAIInvulnerable)
+  const setAIRespawnPosition = useGameStore((s) => s.setAIRespawnPosition)
+  const getAIRespawnPosition = useGameStore((s) => s.getAIRespawnPosition)
 
   const aiShipsData = useMemo(() => {
     const colors = ['#ff4444', '#ff8800', '#ffff00', '#ff00ff', '#00ff88'];
@@ -177,6 +181,11 @@ const AIManager = () => {
     profiler.start('AIManager.speedReduction')
     updateAISpeedReduction(delta)
     profiler.end('AIManager.speedReduction')
+    
+    // Update AI respawns every frame
+    profiler.start('AIManager.respawns')
+    updateAIRespawns(delta, raceTime)
+    profiler.end('AIManager.respawns')
 
     // Get player position for AI targeting
     const playerPos = (window as any).__weaponSystemRefs?.playerPosition || new THREE.Vector3()
@@ -236,14 +245,47 @@ const AIManager = () => {
       // Check if AI is destroyed using bit flags
       const aiState = aiStateArray[st.id]
       const isDestroyed = BitFlagUtils.has(aiState, ShipState.DESTROYED)
+      const isInvulnerable = isAIInvulnerable(st.id)
+      
+      // Apply to mesh
+      const ref = aiRefs.current[i]
       
       if (isDestroyed) {
+        // Store the position where AI was destroyed for respawn
+        if (ref && ref.visible) {
+          setAIRespawnPosition(st.id, ref.position.x, ref.position.z)
+        }
+        
         // Hide destroyed ships
-        const ref = aiRefs.current[i]
         if (ref) {
           ref.visible = false
         }
         continue
+      }
+      
+      // Check if AI just respawned and should be repositioned (only once)
+      const respawnPos = getAIRespawnPosition(st.id)
+      if (respawnPos && isInvulnerable) {
+        // Check if we just transitioned from destroyed to alive
+        const wasJustRespawned = st.z !== respawnPos.z
+        if (wasJustRespawned) {
+          // Use respawn position only on the first frame after respawn
+          st.z = respawnPos.z
+          st.xOffset = respawnPos.x - st.baseX
+        }
+      }
+      
+      // Show ship and apply blinking effect if invulnerable
+      if (ref) {
+        ref.visible = true
+        
+        // Blinking effect during invulnerability
+        if (isInvulnerable) {
+          // Blink at 5Hz (5 times per second)
+          const blinkFrequency = 5
+          const blinkPhase = (raceTime * blinkFrequency) % 1
+          ref.visible = blinkPhase < 0.5
+        }
       }
 
       if (gameState === 'playing' && isRaceStarted && !st.finished) {
@@ -304,9 +346,7 @@ const AIManager = () => {
         }
       }
 
-      // Apply to mesh
-      const ref = aiRefs.current[i]
-      if (ref) {
+      if (ref && ref.visible) {
         ref.position.set(finalX, 0, st.z)
         ref.rotation.z = Math.sin(t * AI_LATERAL_SWAY_FREQUENCY + st.phase) * 0.1
         

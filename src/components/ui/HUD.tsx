@@ -460,6 +460,38 @@ const BoostIndicator = styled.div<{ active: boolean }>`
   }
 `
 
+const AmmoContainer = styled.div`
+  position: absolute;
+  top: 80px;
+  left: 20px;
+  width: 250px;
+`;
+
+const AmmoLabel = styled.div`
+  font-size: 12px;
+  color: var(--hud-cyan);
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+`;
+
+const AmmoDisplay = styled.div`
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+`;
+
+const AmmoDot = styled.div<{ filled: boolean }>`
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: ${props => props.filled ? 'var(--hud-cyan)' : 'rgba(0, 212, 255, 0.2)'};
+  border: 1px solid ${props => props.filled ? 'var(--hud-cyan)' : 'rgba(0, 212, 255, 0.3)'};
+  box-shadow: ${props => props.filled ? '0 0 8px var(--glow-blue)' : 'none'};
+  transition: all 0.2s ease;
+`;
+
 const Controls = styled.div`
   position: absolute;
   bottom: 20px;
@@ -507,6 +539,8 @@ export const HUD = () => {
   const countdown = useGameStore(state => state.countdown)
   const playerHealth = useGameStore(state => state.playerHealth)
   const playerMaxHealth = useGameStore(state => state.playerMaxHealth)
+  const playerAmmo = useGameStore(state => state.playerAmmo)
+  const playerMaxAmmo = useGameStore(state => state.playerMaxAmmo)
   const raceTime = useGameStore(state => state.raceTime)
   const finishTime = useGameStore(state => state.finishTime)
   const distanceToFinish = useGameStore(state => state.distanceToFinish)
@@ -584,13 +618,25 @@ export const HUD = () => {
       
       {/* Health Bar */}
       {(gameState === 'playing' || gameState === 'countdown') && (
-        <HealthBarContainer>
-          <HealthBarLabel>Hull Integrity</HealthBarLabel>
-          <HealthBarTrack>
-            <HealthBarFill health={healthPercent} />
-            <HealthValue>{Math.round(playerHealth)}</HealthValue>
-          </HealthBarTrack>
-        </HealthBarContainer>
+        <>
+          <HealthBarContainer>
+            <HealthBarLabel>Hull Integrity</HealthBarLabel>
+            <HealthBarTrack>
+              <HealthBarFill health={healthPercent} />
+              <HealthValue>{Math.round(playerHealth)}</HealthValue>
+            </HealthBarTrack>
+          </HealthBarContainer>
+          
+          {/* Ammo Display */}
+          <AmmoContainer>
+            <AmmoLabel>Ammo</AmmoLabel>
+            <AmmoDisplay>
+              {Array.from({ length: playerMaxAmmo }).map((_, i) => (
+                <AmmoDot key={i} filled={i < playerAmmo} />
+              ))}
+            </AmmoDisplay>
+          </AmmoContainer>
+        </>
       )}
       
       {/* Damage Vignette */}

@@ -41,11 +41,11 @@ export const GAME_CONSTANTS = {
   MAX_HEALTH: 100,
   
   // AI Combat
-  AI_SHOOT_CHANCE: 0.20, // 20% per second (reduced for performance)
-  AI_SHOOT_RANGE: 200, // units (reduced for performance)
-  AI_SHOOT_CONE: 45, // degrees
-  AI_ACCURACY: 0.75, // 75% accuracy
-  AI_FIRE_RATE: 1.0, // seconds between shots (increased for performance)
+  AI_SHOOT_CHANCE: 0.50, // 50% per second - more aggressive
+  AI_SHOOT_RANGE: 300, // units - longer range
+  AI_SHOOT_CONE: 60, // degrees - wider cone
+  AI_ACCURACY: 0.85, // 85% accuracy - better aim
+  AI_FIRE_RATE: 0.5, // seconds between shots - faster firing
   
   // Visual
   MAX_ACTIVE_PROJECTILES: 40, // Further reduced for better performance
