@@ -108,8 +108,16 @@ const AIManager = () => {
   const getAIRespawnPosition = useGameStore((s) => s.getAIRespawnPosition)
 
   const aiShipsData = useMemo(() => {
-    const colors = ['#ff4444', '#ff8800', '#ffff00', '#ff00ff', '#00ff88'];
-    const names = ['Viper', 'Phoenix', 'Falcon', 'Thunder', 'Storm'];
+    const colors = [
+      '#FF4444', '#FF8800', '#FFFF00', '#00FF88', '#00FFFF', 
+      '#0088FF', '#FF00FF', '#CC00FF', '#FF0088', '#88FF00', 
+      '#00CC00', '#4400FF', '#FF44FF', '#884400', '#888888'
+    ];
+    const names = [
+      'Viper', 'Phoenix', 'Falcon', 'Thunder', 'Storm', 
+      'Predator', 'Ghost', 'Stinger', 'Raptor', 'Kraken',
+      'Comet', 'Arrow', 'Nova', 'Pulsar', 'Goliath'
+    ];
     const half = (AI_COUNT - 1) / 2
 
     return Array.from({ length: AI_COUNT }).map((_, i) => {

@@ -12,7 +12,7 @@ export const GAME_CONSTANTS = {
   RACE_DISTANCE: 5000, // Z-coordinate distance to the finish disk
   FINISH_DISK_RADIUS: 50,
   AI_SPEED_MULTIPLIER: 0.85,
-  AI_COUNT: 5,
+  AI_COUNT: 15,
 
   // AI behavior tuning
   AI_SPEED_VARIANCE: 0.2,
