@@ -387,17 +387,23 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
   
   removeProjectile: (id) => {
     set((state) => {
-      const projectile = state.activeProjectiles.find(p => p.id === id)
-      if (projectile) {
-        // Return to pool
-        projectilePool.release(projectile)
-        
-        // Remove from spatial index
+      // 1. Determine the new array immutably, filtering by the unique ID.
+      const newActiveProjectiles = state.activeProjectiles.filter(p => p.id !== id)
+      
+      // 2. Identify the projectile instance that was removed (using the original array).
+      const projectileToRelease = state.activeProjectiles.find(p => p.id === id)
+      
+      // 3. Perform cleanup side effects/mutations on the instance.
+      if (projectileToRelease) {
+        // Remove from spatial index using the original ID
         state.spatialIndices.projectiles.remove(id)
+        
+        // Return to pool, which mutates its ID to '' (MUST be done after filtering the array)
+        projectilePool.release(projectileToRelease)
       }
       
       return {
-        activeProjectiles: state.activeProjectiles.filter(p => p.id !== id)
+        activeProjectiles: newActiveProjectiles
       }
     })
   },
