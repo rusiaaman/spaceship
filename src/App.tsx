@@ -5,10 +5,16 @@ import { HUD } from './components/ui/HUD'
 import { MainMenu } from './components/ui/MainMenu'
 import { PauseMenu } from './components/ui/PauseMenu'
 import { PerformanceMonitor } from './components/ui/PerformanceMonitor'
+import { soundManager } from './utils/soundManager'
 
 function App() {
   const gameState = useGameStore((state) => state.gameState)
   const setGameState = useGameStore((state) => state.setGameState)
+
+  // Start background music on app load
+  useEffect(() => {
+    soundManager.playBackgroundMusic()
+  }, [])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
