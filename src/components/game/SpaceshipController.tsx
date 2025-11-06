@@ -95,7 +95,7 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
     }
     
     // Get frequently updated state and setters inside useFrame
-    const { speed, setRaceTime, setSpeed, setDistanceToFinish, aiStandings, setPlayerPosition, playerState, boostEndTime, deactivateBoost, raceTime, fireProjectile, maxSpeed, playerAmmo } = useGameStore.getState();
+    const { speed, setRaceTime, setSpeed, setDistanceToFinish, aiStandings, setPlayerPosition, playerState, boostEndTime, deactivateBoost, raceTime, fireProjectile, maxSpeed, playerAmmo, checkPlayerRespawn } = useGameStore.getState();
     
     // Update engine sound based on speed
     soundManager.updateEngineSound(speed, maxSpeed, BitFlagUtils.has(playerState, ShipState.BOOSTING))
@@ -113,6 +113,9 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
     // Update Race Timer and Distance
     if (isRaceStarted && gameState === 'playing') {
       setRaceTime((prev: number) => prev + delta);
+      
+      // Check if player needs to transition from RESPAWNING to ACTIVE after delay
+      checkPlayerRespawn(raceTime);
       
       // Update distance to finish (throttled)
       const finishZ = -GAME_CONSTANTS.RACE_DISTANCE;

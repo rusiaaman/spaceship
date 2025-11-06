@@ -41,11 +41,11 @@ export const GAME_CONSTANTS = {
   MAX_HEALTH: 100,
   
   // AI Combat
-  AI_SHOOT_CHANCE: 0.50, // 50% per second - more aggressive
+  AI_SHOOT_CHANCE: 0.75, // 75% per second - significantly more aggressive
   AI_SHOOT_RANGE: 300, // units - longer range
   AI_SHOOT_CONE: 60, // degrees - wider cone
-  AI_ACCURACY: 0.85, // 85% accuracy - better aim
-  AI_FIRE_RATE: 0.5, // seconds between shots - faster firing
+  AI_ACCURACY: 0.95, // 95% accuracy - highly accurate aim
+  AI_FIRE_RATE: 0.3, // seconds between shots - much faster firing
   
   // Player Combat & Respawn
   PLAYER_RESPAWN_INVULNERABILITY_DURATION: 3.0,

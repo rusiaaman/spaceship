@@ -16,7 +16,8 @@ export const ShipState = {
   EVADING: 1 << 5,     // 32
   PURSUING: 1 << 6,    // 64
   FORMATION: 1 << 7,    // 128
-  INVULNERABLE: 1 << 8 // 256
+  INVULNERABLE: 1 << 8, // 256
+  RESPAWNING: 1 << 9    // 512
 } as const
 
 /**

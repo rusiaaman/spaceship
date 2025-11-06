@@ -77,6 +77,7 @@ interface GameStore {
   playerState: number // Bit flags: ShipState
   boostEndTime: number
   playerInvulnerableUntil: number // Time when player invulnerability ends
+  playerRespawnTime: number // Time when player respawn delay ends
   collectedBoosters: Set<number>
   
   // Combat state - optimized with typed arrays
@@ -132,6 +133,7 @@ interface GameStore {
   isAIInvulnerable: (id: number) => boolean
   isPlayerInvulnerable: () => boolean
   updateAIRespawns: (delta: number, currentTime: number) => void
+  checkPlayerRespawn: (currentTime: number) => void
   setAIRespawnPosition: (id: number, x: number, z: number) => void
   getAIRespawnPosition: (id: number) => { x: number; z: number } | undefined
   refillAmmo: () => void
@@ -163,6 +165,7 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
   playerState: ShipState.ACTIVE,
   boostEndTime: 0,
   playerInvulnerableUntil: 0,
+  playerRespawnTime: 0,
   collectedBoosters: new Set(),
   
   // Combat state - optimized with typed arrays
@@ -268,6 +271,7 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
       playerState: ShipState.ACTIVE,
       boostEndTime: 0,
       playerInvulnerableUntil: 0,
+      playerRespawnTime: 0,
       collectedBoosters: new Set(),
       playerHealth: 100,
       playerAmmo: 30,
@@ -421,22 +425,27 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
         const newHealth = Math.max(0, state.playerHealth - damage)
         let newPlayerState = state.playerState
         let newInvulnerableUntil = state.playerInvulnerableUntil
+        let newRespawnTime = state.playerRespawnTime
         let finalHealth = newHealth
 
         if (newHealth <= 0) {
-          // Player Destroyed/Respawn sequence
+          // Player Destroyed/Respawn sequence: PAUSE
           soundManager.playSound('explosion')
           
-          // Reset health and set invulnerability
-          const maxHealth = state.playerMaxHealth
-          const respawnDuration = GAME_CONSTANTS.PLAYER_RESPAWN_INVULNERABILITY_DURATION
+          // Step 1: Reset speed to 0 (must use getState().setSpeed for access outside 'set')
+          useGameStore.getState().setSpeed(0)
           
-          newPlayerState = BitFlagUtils.clear(newPlayerState, ShipState.DESTROYED | ShipState.DAMAGED)
-          newPlayerState = BitFlagUtils.set(newPlayerState, ShipState.ACTIVE | ShipState.INVULNERABLE)
+          const respawnDelay = 1.0 // 1 second pause before full respawn
           
-          newInvulnerableUntil = currentTime + respawnDuration
-          finalHealth = maxHealth // Reset health
-
+          // Clear all active movement/combat related flags, set RESPAWNING
+          newPlayerState = BitFlagUtils.clear(newPlayerState, ShipState.DESTROYED | ShipState.DAMAGED | ShipState.INVULNERABLE | ShipState.BOOSTING | ShipState.ACTIVE)
+          newPlayerState = BitFlagUtils.set(newPlayerState, ShipState.RESPAWNING)
+          
+          // Set the time when the actual respawn process starts
+          newRespawnTime = currentTime + respawnDelay
+          
+          finalHealth = 0 // Temporarily show 0 health during the respawn delay
+          
         } else {
           // Player damaged but still alive
           newPlayerState = BitFlagUtils.set(newPlayerState, ShipState.DAMAGED)
@@ -450,7 +459,8 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
         return {
           playerHealth: finalHealth,
           playerState: newPlayerState,
-          playerInvulnerableUntil: newInvulnerableUntil
+          playerInvulnerableUntil: newInvulnerableUntil,
+          playerRespawnTime: newRespawnTime
         }
       } else {
         // Check if AI is invulnerable (blinking after respawn)
@@ -568,6 +578,29 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
         }
       }
       
+      return {}
+    })
+  },
+  
+  checkPlayerRespawn: (currentTime) => {
+    set((state) => {
+      // Check if respawn delay is over and we are currently respawning
+      if (BitFlagUtils.has(state.playerState, ShipState.RESPAWNING) && currentTime >= state.playerRespawnTime) {
+        
+        const maxHealth = state.playerMaxHealth
+        const respawnDuration = GAME_CONSTANTS.PLAYER_RESPAWN_INVULNERABILITY_DURATION
+        
+        // Transition from RESPAWNING to ACTIVE and INVULNERABLE
+        let newPlayerState = BitFlagUtils.clear(state.playerState, ShipState.RESPAWNING | ShipState.DESTROYED | ShipState.DAMAGED | ShipState.BOOSTING)
+        newPlayerState = BitFlagUtils.set(newPlayerState, ShipState.ACTIVE | ShipState.INVULNERABLE)
+        
+        return {
+          playerHealth: maxHealth, // Reset health to max
+          playerState: newPlayerState,
+          playerInvulnerableUntil: currentTime + respawnDuration, // Start invulnerability period
+          playerRespawnTime: 0, // Reset timer
+        }
+      }
       return {}
     })
   },
