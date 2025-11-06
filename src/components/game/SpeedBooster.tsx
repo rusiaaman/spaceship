@@ -2,14 +2,13 @@ import { useRef, memo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Torus } from '@react-three/drei'
 import * as THREE from 'three'
-import { useGameStore } from '@/store/gameStore'
 
 interface SpeedBoosterProps {
   id: number
   position: [number, number, number]
 }
 
-const SpeedBoosterComponent = ({ id, position }: SpeedBoosterProps) => {
+const SpeedBoosterComponent = ({ id: _id, position }: SpeedBoosterProps) => {
   const groupRef = useRef<THREE.Group>(null!)
   const materialRef = useRef<THREE.MeshStandardMaterial>(null!)
 

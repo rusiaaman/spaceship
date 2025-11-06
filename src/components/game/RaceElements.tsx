@@ -324,8 +324,6 @@ const AIManager = () => {
           const nearbyBoosters = spatialIndices.boosters.queryRadius(aiPos, BOOSTER_RING_RADIUS * 1.5)
 
           for (const booster of nearbyBoosters) {
-            const boosterId = booster.id as number
-
             // Check distance to permanent booster
             const distance = aiPos.distanceTo(booster.position)
             if (distance < BOOSTER_RADIUS + 3) {

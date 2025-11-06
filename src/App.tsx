@@ -24,9 +24,24 @@ function App() {
   }, [gameState])
 
   useEffect(() => {
+    // Initial automatic cursor capture
+    document.documentElement.requestPointerLock()
+  }, [])
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && gameState === 'playing') {
         setGameState('paused')
+      }
+
+      // Cmd + Enter for Fullscreen toggle
+      if (e.metaKey && e.key === 'Enter') {
+        e.preventDefault()
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen()
+        } else {
+          document.exitFullscreen()
+        }
       }
     }
 

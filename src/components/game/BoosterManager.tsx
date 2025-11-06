@@ -1,4 +1,4 @@
-import { useMemo, memo, useEffect, useRef } from 'react'
+import { useMemo, memo, useEffect } from 'react'
 import { SpeedBooster } from './SpeedBooster'
 import { GAME_CONSTANTS } from '@/utils/constants'
 import { useGameStore } from '@/store/gameStore'
