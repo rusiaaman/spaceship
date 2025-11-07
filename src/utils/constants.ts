@@ -1,3 +1,50 @@
+// Ship size classes with log-scale variation
+// Larger ships have more mass (lower acceleration), more health, but higher top speed
+export const SHIP_SIZE_CLASSES = {
+  TINY: { 
+    scale: 1.0, 
+    maneuverability: 1.5, 
+    maxSpeed: 110, 
+    mass: 0.7,        // Lower mass = faster acceleration
+    maxHealth: 75,    // Lower health
+    name: 'Tiny' 
+  },
+  SMALL: { 
+    scale: 1.5, 
+    maneuverability: 1.2, 
+    maxSpeed: 115, 
+    mass: 1.0,        // Baseline mass
+    maxHealth: 100,   // Baseline health
+    name: 'Small' 
+  },
+  MEDIUM: { 
+    scale: 2.25, 
+    maneuverability: 1.0, 
+    maxSpeed: 120, 
+    mass: 1.5,        // Higher mass = slower acceleration
+    maxHealth: 150,   // More health
+    name: 'Medium' 
+  },
+  LARGE: { 
+    scale: 3.4, 
+    maneuverability: 0.75, 
+    maxSpeed: 125, 
+    mass: 2.5,        // Much higher mass
+    maxHealth: 225,   // Much more health
+    name: 'Large' 
+  },
+  HUGE: { 
+    scale: 5.0, 
+    maneuverability: 0.5, 
+    maxSpeed: 130, 
+    mass: 4.0,        // Highest mass = slowest acceleration
+    maxHealth: 350,   // Highest health
+    name: 'Huge' 
+  },
+} as const
+
+export type ShipSizeClass = keyof typeof SHIP_SIZE_CLASSES
+
 export const GAME_CONSTANTS = {
   ACCELERATION: 60,
   MAX_SPEED: 120,
@@ -20,6 +67,10 @@ export const GAME_CONSTANTS = {
   AI_LATERAL_SWAY_FREQUENCY: 0.5,
   AI_INITIAL_Z_MIN: -60,
   AI_INITIAL_Z_MAX: -20,
+  
+  // Ship size configuration
+  DEFAULT_PLAYER_SIZE: 'MEDIUM' as ShipSizeClass,
+  DEFAULT_AI_SIZE: 'MEDIUM' as ShipSizeClass,
 
   // Speed Booster Constants
   BOOSTER_COUNT: 6,

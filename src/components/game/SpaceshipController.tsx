@@ -18,6 +18,7 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
   const gameState = useGameStore(state => state.gameState);
   const isRaceStarted = useGameStore(state => state.isRaceStarted);
   const cameraView = useGameStore(state => state.cameraView);
+  const getPlayerSizeConfig = useGameStore(state => state.getPlayerSizeConfig);
 
   const checkFinishCollision = (position: THREE.Vector3) => {
     const finishZ = -GAME_CONSTANTS.RACE_DISTANCE;
@@ -154,10 +155,15 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
           profiler.end('SpaceshipController.shooting')
         }
         lastShootStateRef.current = controls.shoot
+        
+        // Get ship size configuration for mass and maneuverability
+        const sizeConfig = getPlayerSizeConfig()
+        
         // --- Speed and Acceleration ---
         profiler.start('SpaceshipController.speedCalc')
         let targetSpeed = speed;
-        const acceleration = GAME_CONSTANTS.ACCELERATION * delta;
+        // Apply mass-based acceleration (larger ships accelerate slower due to higher mass)
+        const acceleration = (GAME_CONSTANTS.ACCELERATION / sizeConfig.mass) * delta;
         
         // Apply booster speed multiplier if active
         const speedMultiplier = isBoosting ? GAME_CONSTANTS.BOOSTER_SPEED_MULTIPLIER : 1
@@ -183,7 +189,8 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
         profiler.end('SpaceshipController.speedCalc')
 
         // --- Rotation ---
-        const rotationSpeed = GAME_CONSTANTS.ROTATION_SPEED;
+        // Apply maneuverability multiplier based on ship size
+        const rotationSpeed = GAME_CONSTANTS.ROTATION_SPEED * sizeConfig.maneuverability;
         const keyboardRotationSpeed = rotationSpeed * 60 * delta; // Normalized for 60fps
         const mouseSensitivity = 0.002; // Sensitivity for mouse delta
 

@@ -13,16 +13,17 @@ interface AIShipProps {
   position: [number, number, number];
   rotationY: number;
   color: string;
+  sizeScale: number;
 }
 
 // Shared geometries for all AI ships (performance optimization)
 const aiBodyGeometry = new THREE.BoxGeometry(2, 1, 4)
 const aiWingGeometry = new THREE.BoxGeometry(6, 0.3, 2)
 
-const AISpaceship = forwardRef<THREE.Group, AIShipProps>(({ position, rotationY, color }, ref) => {
+const AISpaceship = forwardRef<THREE.Group, AIShipProps>(({ position, rotationY, color, sizeScale }, ref) => {
   return (
-    <group position={position} rotation-y={rotationY} ref={ref} scale={1.5}>
-      {/* Main body - using shared geometry */}
+    <group position={position} rotation-y={rotationY} ref={ref} scale={1.5 * sizeScale}>
+      {/* Main body - using shared geometry, scaled by ship size */}
       <mesh geometry={aiBodyGeometry} position={[0, 0, 0]}>
         <meshStandardMaterial 
           color={color} 
@@ -106,6 +107,7 @@ const AIManager = () => {
   const isAIInvulnerable = useGameStore((s) => s.isAIInvulnerable)
   const setAIRespawnPosition = useGameStore((s) => s.setAIRespawnPosition)
   const getAIRespawnPosition = useGameStore((s) => s.getAIRespawnPosition)
+  const getAISizeConfig = useGameStore((s) => s.getAISizeConfig)
 
   const aiShipsData = useMemo(() => {
     const colors = [
@@ -121,7 +123,8 @@ const AIManager = () => {
     const half = (AI_COUNT - 1) / 2
 
     return Array.from({ length: AI_COUNT }).map((_, i) => {
-      const baseX = (i - half) * 8
+      const sizeConfig = getAISizeConfig(i)
+      const baseX = (i - half) * 8 * sizeConfig.scale // Adjust spacing based on size
       // Spawn ahead of player toward finish (negative z)
       const nearMin = Math.min(Math.abs(AI_INITIAL_Z_MIN), Math.abs(AI_INITIAL_Z_MAX))
       const nearMax = Math.max(Math.abs(AI_INITIAL_Z_MIN), Math.abs(AI_INITIAL_Z_MAX))
@@ -131,10 +134,11 @@ const AIManager = () => {
         name: names[i % names.length],
         color: colors[i % colors.length],
         baseX,
-        initialZ: zNeg as number
+        initialZ: zNeg as number,
+        sizeScale: sizeConfig.scale
       }
     })
-  }, [AI_COUNT, AI_INITIAL_Z_MAX, AI_INITIAL_Z_MIN])
+  }, [AI_COUNT, AI_INITIAL_Z_MAX, AI_INITIAL_Z_MIN, getAISizeConfig])
 
   const aiRefs = useRef<THREE.Group[]>([])
   aiRefs.current = []
@@ -151,8 +155,10 @@ const AIManager = () => {
   useEffect(() => {
     if (gameState === 'menu' || gameState === 'countdown' || !initOnceRef.current) {
       aiStateRef.current = aiShipsData.map((d) => {
+        const sizeConfig = getAISizeConfig(d.id)
         const variance = 1 + (Math.random() * 2 - 1) * AI_SPEED_VARIANCE
-        const speed = MAX_SPEED * AI_SPEED_MULTIPLIER * variance
+        // Use size-specific max speed
+        const speed = sizeConfig.maxSpeed * AI_SPEED_MULTIPLIER * variance
         return {
           id: d.id,
           name: d.name,
@@ -470,6 +476,7 @@ const AIManager = () => {
           position={[ship.baseX, 0, aiStateRef.current[idx]?.z ?? ship.initialZ]}
           rotationY={0}
           color={ship.color}
+          sizeScale={ship.sizeScale}
         />
       ))}
     </>

@@ -64,6 +64,8 @@ export const SpaceshipModel = ({ spaceshipRef }: SpaceshipModelProps) => {
   // Only render in third-person view
   // We only subscribe to cameraView here to minimize component re-renders.
   const cameraView = useGameStore(state => state.cameraView)
+  const getPlayerSizeConfig = useGameStore(state => state.getPlayerSizeConfig)
+  const sizeConfig = getPlayerSizeConfig()
   
   useEffect(() => {
     console.log('Spaceship model component mounted, camera view:', cameraView)
@@ -105,10 +107,10 @@ export const SpaceshipModel = ({ spaceshipRef }: SpaceshipModelProps) => {
   
   return (
     <group ref={modelRef}>
-      {/* Actual spaceship model with larger scale and correct orientation */}
+      {/* Actual spaceship model with size-based scale and correct orientation */}
       <primitive 
         object={clonedScene} 
-        scale={10}
+        scale={10 * sizeConfig.scale}
         rotation={[0, -Math.PI / 2, 0]}
       />
       

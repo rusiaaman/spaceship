@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import * as THREE from 'three'
-import { GAME_CONSTANTS } from '@/utils/constants'
+import { GAME_CONSTANTS, SHIP_SIZE_CLASSES, type ShipSizeClass } from '@/utils/constants'
 import { profiler } from '@/utils/profiler'
 import { ObjectPool } from '@/utils/ObjectPool'
 import { soundManager } from '@/utils/soundManager'
@@ -64,6 +64,8 @@ const projectilePool = new ObjectPool<Projectile>(
 interface GameStore {
   gameState: GameState
   cameraView: CameraView
+  playerSizeClass: ShipSizeClass
+  aiSizeClasses: ShipSizeClass[]
   speed: number
   maxSpeed: number
   score: number
@@ -100,6 +102,11 @@ interface GameStore {
   
   // Spatial indexing
   spatialIndices: GameSpatialIndices
+  
+  // Ship size actions
+  setPlayerSizeClass: (sizeClass: ShipSizeClass) => void
+  getPlayerSizeConfig: () => typeof SHIP_SIZE_CLASSES[ShipSizeClass]
+  getAISizeConfig: (aiId: number) => typeof SHIP_SIZE_CLASSES[ShipSizeClass]
   
   // Event scheduling
   eventScheduler: EventScheduler
@@ -147,11 +154,22 @@ interface GameStore {
   getCombatStats: () => CombatStats
 }
 
+// Generate random size classes for AI ships
+const generateAISizeClasses = (): ShipSizeClass[] => {
+  const sizeClasses = Object.keys(SHIP_SIZE_CLASSES) as ShipSizeClass[]
+  return Array.from({ length: GAME_CONSTANTS.AI_COUNT }, () => {
+    // Random distribution across all size classes
+    return sizeClasses[Math.floor(Math.random() * sizeClasses.length)]
+  })
+}
+
 export const useGameStore = create<GameStore>((set): GameStore => ({
   gameState: 'menu',
   cameraView: 'third-person',
+  playerSizeClass: GAME_CONSTANTS.DEFAULT_PLAYER_SIZE,
+  aiSizeClasses: generateAISizeClasses(),
   speed: 0,
-  maxSpeed: 120,
+  maxSpeed: SHIP_SIZE_CLASSES[GAME_CONSTANTS.DEFAULT_PLAYER_SIZE].maxSpeed,
   score: 0,
   raceTime: 0,
   countdown: 3,
@@ -166,12 +184,28 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
   playerRespawnTime: 0,
 
   // Combat state - optimized with typed arrays
-  playerHealth: 100,
-  playerMaxHealth: 100,
+  // Health based on ship size
+  playerHealth: SHIP_SIZE_CLASSES[GAME_CONSTANTS.DEFAULT_PLAYER_SIZE].maxHealth,
+  playerMaxHealth: SHIP_SIZE_CLASSES[GAME_CONSTANTS.DEFAULT_PLAYER_SIZE].maxHealth,
   playerAmmo: 30,
   playerMaxAmmo: 30,
-  aiHealthArray: new Float32Array(GAME_CONSTANTS.AI_COUNT).fill(100),
-  aiMaxHealthArray: new Float32Array(GAME_CONSTANTS.AI_COUNT).fill(100),
+  // AI health arrays - initialized with size-based health in effect hook
+  aiHealthArray: (() => {
+    const arr = new Float32Array(GAME_CONSTANTS.AI_COUNT)
+    const sizeClasses = generateAISizeClasses()
+    for (let i = 0; i < GAME_CONSTANTS.AI_COUNT; i++) {
+      arr[i] = SHIP_SIZE_CLASSES[sizeClasses[i]].maxHealth
+    }
+    return arr
+  })(),
+  aiMaxHealthArray: (() => {
+    const arr = new Float32Array(GAME_CONSTANTS.AI_COUNT)
+    const sizeClasses = generateAISizeClasses()
+    for (let i = 0; i < GAME_CONSTANTS.AI_COUNT; i++) {
+      arr[i] = SHIP_SIZE_CLASSES[sizeClasses[i]].maxHealth
+    }
+    return arr
+  })(),
   aiSpeedReductionArray: new Float32Array(GAME_CONSTANTS.AI_COUNT).fill(0),
   aiStateArray: new Uint16Array(GAME_CONSTANTS.AI_COUNT).fill(ShipState.ACTIVE),
   aiRespawnTimers: new Float32Array(GAME_CONSTANTS.AI_COUNT).fill(0),
@@ -247,9 +281,25 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
     // Release all projectiles back to pool
     state.activeProjectiles.forEach(p => projectilePool.release(p))
     
+    // Regenerate AI size classes for variety
+    const newAISizeClasses = generateAISizeClasses()
+    
+    // Initialize AI health arrays based on new size classes
+    const newAIHealthArray = new Float32Array(GAME_CONSTANTS.AI_COUNT)
+    const newAIMaxHealthArray = new Float32Array(GAME_CONSTANTS.AI_COUNT)
+    for (let i = 0; i < GAME_CONSTANTS.AI_COUNT; i++) {
+      const health = SHIP_SIZE_CLASSES[newAISizeClasses[i]].maxHealth
+      newAIHealthArray[i] = health
+      newAIMaxHealthArray[i] = health
+    }
+    
+    const playerConfig = SHIP_SIZE_CLASSES[GAME_CONSTANTS.DEFAULT_PLAYER_SIZE]
+    
     set({
       gameState: 'menu',
       cameraView: 'third-person',
+      playerSizeClass: GAME_CONSTANTS.DEFAULT_PLAYER_SIZE,
+      aiSizeClasses: newAISizeClasses,
       speed: 0,
       score: 0,
       raceTime: 0,
@@ -261,12 +311,12 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
       playerPosition: 1,
       playerState: ShipState.ACTIVE,
       boostEndTime: 0,
-            playerInvulnerableUntil: 0,
-            playerRespawnTime: 0,
-            playerHealth: 100,
+      playerInvulnerableUntil: 0,
+      playerRespawnTime: 0,
+      playerHealth: playerConfig.maxHealth,
       playerAmmo: 30,
-      aiHealthArray: new Float32Array(GAME_CONSTANTS.AI_COUNT).fill(100),
-      aiMaxHealthArray: new Float32Array(GAME_CONSTANTS.AI_COUNT).fill(100),
+      aiHealthArray: newAIHealthArray,
+      aiMaxHealthArray: newAIMaxHealthArray,
       aiSpeedReductionArray: new Float32Array(GAME_CONSTANTS.AI_COUNT).fill(0),
       aiStateArray: new Uint16Array(GAME_CONSTANTS.AI_COUNT).fill(ShipState.ACTIVE),
       aiRespawnTimers: new Float32Array(GAME_CONSTANTS.AI_COUNT).fill(0),
@@ -682,6 +732,27 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
   }),
   
   getCombatStats: () => useGameStore.getState().combatStats,
+  
+  setPlayerSizeClass: (sizeClass: ShipSizeClass) => set(() => {
+    const config = SHIP_SIZE_CLASSES[sizeClass]
+    return {
+      playerSizeClass: sizeClass,
+      maxSpeed: config.maxSpeed,
+      playerHealth: config.maxHealth,
+      playerMaxHealth: config.maxHealth
+    }
+  }),
+  
+  getPlayerSizeConfig: () => {
+    const state = useGameStore.getState()
+    return SHIP_SIZE_CLASSES[state.playerSizeClass]
+  },
+  
+  getAISizeConfig: (aiId: number) => {
+    const state = useGameStore.getState()
+    const sizeClass = state.aiSizeClasses[aiId] || GAME_CONSTANTS.DEFAULT_AI_SIZE
+    return SHIP_SIZE_CLASSES[sizeClass]
+  },
   
   toggleCameraView: () => set((state) => ({
     cameraView: state.cameraView === 'first-person' ? 'third-person' : 'first-person'
