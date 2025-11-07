@@ -242,16 +242,14 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
         const localForward = new THREE.Vector3(0, 0, -1);
         const worldDirection = localForward.applyQuaternion(spaceship.quaternion);
         
-        // Constrain movement to XZ plane to prevent vertical drift
-        worldDirection.y = 0;
-        worldDirection.normalize();
+        // The previous constraint (worldDirection.y = 0) and normalization are removed
+        // to allow for 3D movement based on pitch rotation.
         
         velocity.copy(worldDirection).multiplyScalar(targetSpeed * delta);
         spaceship.position.add(velocity);
         
-        // Keep spaceship at a consistent height (prevent sinking or floating)
-        const targetHeight = 0;
-        spaceship.position.y = THREE.MathUtils.lerp(spaceship.position.y, targetHeight, 0.1);
+        // The previous vertical damping (spaceship.position.y = ...) is removed
+        // to allow the ship to fly up and down freely.
 
         // Check for booster collision every frame for responsive detection
         if (isRaceStarted) {

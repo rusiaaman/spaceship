@@ -34,13 +34,38 @@ function App() {
         setGameState('paused')
       }
 
-      // Cmd + Enter for Fullscreen toggle
+      // Cmd + Enter for Fullscreen toggle (using cross-browser approach)
       if (e.metaKey && e.key === 'Enter') {
         e.preventDefault()
-        if (!document.fullscreenElement) {
-          document.documentElement.requestFullscreen()
+        
+        const docEl = document.documentElement as any;
+        const doc = document as any;
+        
+        const isFullscreen = doc.fullscreenElement || 
+                             doc.webkitFullscreenElement || 
+                             doc.mozFullScreenElement || 
+                             doc.msFullscreenElement;
+
+        if (!isFullscreen) {
+          if (docEl.requestFullscreen) {
+            docEl.requestFullscreen();
+          } else if (docEl.webkitRequestFullscreen) {
+            docEl.webkitRequestFullscreen(); // Chrome/Safari
+          } else if (docEl.mozRequestFullScreen) {
+            docEl.mozRequestFullScreen(); // Firefox
+          } else if (docEl.msRequestFullscreen) {
+            docEl.msRequestFullscreen(); // IE/Edge
+          }
         } else {
-          document.exitFullscreen()
+          if (doc.exitFullscreen) {
+            doc.exitFullscreen();
+          } else if (doc.webkitExitFullscreen) {
+            doc.webkitExitFullscreen();
+          } else if (doc.mozCancelFullScreen) {
+            doc.mozCancelFullScreen();
+          } else if (doc.msExitFullscreen) {
+            doc.msExitFullscreen();
+          }
         }
       }
     }
