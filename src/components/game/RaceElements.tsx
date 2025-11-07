@@ -73,6 +73,62 @@ const FinishDisk = () => {
   );
 };
 
+interface RacerStanding {
+  id: number | 'player';
+  name: string;
+  distance: number;
+  finished: boolean;
+  finishTime?: number;
+}
+
+// Helper function to sort and assign ranks with tie handling (Dense Ranking)
+const assignRanksWithTies = (racers: RacerStanding[]): (RacerStanding & { rank: number })[] => {
+  // Sort racers: 1. Finished first, 2. By finish time (asc), 3. By distance (asc)
+  const sortedRacers = racers.sort((a, b) => {
+    if (a.finished && !b.finished) return -1;
+    if (!a.finished && b.finished) return 1;
+
+    if (a.finished && b.finished) {
+      // Sort by finish time (lower is better)
+      return (a.finishTime ?? Infinity) - (b.finishTime ?? Infinity);
+    }
+
+    // Use distance for racing ships (lower distance is better)
+    return a.distance - b.distance;
+  });
+
+  const rankedRacers: (RacerStanding & { rank: number })[] = [];
+
+  for (let i = 0; i < sortedRacers.length; i++) {
+    const currentRacer = sortedRacers[i];
+    let currentRank: number;
+
+    if (i === 0) {
+      currentRank = 1;
+    } else {
+      const prevRacer = sortedRacers[i - 1];
+
+      let isTie = false;
+      if (currentRacer.finished && prevRacer.finished) {
+        // Tie based on finish time
+        isTie = (currentRacer.finishTime === prevRacer.finishTime);
+      } else if (!currentRacer.finished && !prevRacer.finished) {
+        // Tie based on distance (using a small tolerance)
+        isTie = Math.abs(currentRacer.distance - prevRacer.distance) < 0.1;
+      }
+
+      if (isTie) {
+        currentRank = rankedRacers[i - 1].rank;
+      } else {
+        currentRank = i + 1;
+      }
+    }
+
+    rankedRacers.push({ ...currentRacer, rank: currentRank });
+  }
+  return rankedRacers;
+};
+
 type AIShipInternal = {
   id: number
   name: string
@@ -96,6 +152,7 @@ const AIManager = () => {
   } = GAME_CONSTANTS
 
   const setAIStandings = useGameStore((s) => s.setAIStandings)
+  const setPlayerPosition = useGameStore((s) => s.setPlayerPosition)
   const gameState = useGameStore((s) => s.gameState)
   const isRaceStarted = useGameStore((s) => s.isRaceStarted)
   const getAISpeedReduction = useGameStore((s) => s.getAISpeedReduction)
@@ -444,25 +501,49 @@ const AIManager = () => {
     
     profiler.end('AIManager.updateShips')
 
-    // Order standings: finished by finish order, then by distance
-    const finishedList = standingsTemp
-      .filter(s => s.finished)
-      .sort((a, b) => (finishOrderRef.current.indexOf(a.id)) - (finishOrderRef.current.indexOf(b.id)))
+    // --- Combined Ranking with Player and Tie Handling ---
+    const playerRaceState = useGameStore.getState()
+    const playerRacer: RacerStanding = {
+      id: 'player',
+      name: 'YOU', // Name matches Leaderboard component
+      distance: playerRaceState.distanceToFinish,
+      finished: !!playerRaceState.finishTime,
+      finishTime: playerRaceState.finishTime ?? undefined,
+    }
 
-    const racingList = standingsTemp
-      .filter(s => !s.finished)
-      .sort((a, b) => a.distance - b.distance)
-
-    const ordered = [...finishedList, ...racingList]
-
-    // Assign positions within AI group
-    const finalStandings = ordered.map((s, idx) => ({
+    // Convert AI data to RacerStanding interface
+    const aiRacers: RacerStanding[] = standingsTemp.map(s => ({
+      id: s.id,
       name: s.name,
       distance: s.distance,
-      position: idx + 1
-    }))
+      finished: s.finished,
+      finishTime: s.finishTime,
+    }));
 
-    setAIStandings(finalStandings)
+    const allRacers = [playerRacer, ...aiRacers];
+
+    // Assign ranks using tie handling logic
+    const rankedRacers = assignRanksWithTies(allRacers);
+
+    // Extract updated player position and AI standings
+    const playerRanked = rankedRacers.find(r => r.id === 'player');
+    
+    // Filter AI standings to update the store's aiStandings structure (name, distance, position)
+    const aiStandingsUpdated = rankedRacers
+      .filter(r => r.id !== 'player')
+      .map(r => ({
+        name: r.name,
+        distance: r.distance,
+        position: r.rank 
+      }));
+
+    // Update the store
+    // The player's rank is stored separately in playerPosition
+    if (playerRanked) {
+      setPlayerPosition(playerRanked.rank);
+    }
+    setAIStandings(aiStandingsUpdated);
+    // --- End Combined Ranking ---
     
     profiler.end('AIManager.frame')
   })

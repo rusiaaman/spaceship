@@ -115,17 +115,7 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
       const distance = Math.max(0, Math.abs(spaceship.position.z - finishZ));
       setDistanceToFinish(distance);
       
-      // Calculate player position less frequently (every 15 frames for better performance)
-      if (Math.floor(raceTime * 60) % 15 === 0) {
-        let position = 1;
-        const aiCount = aiStandings.length;
-        for (let i = 0; i < aiCount; i++) {
-          if (aiStandings[i].distance < distance) {
-            position++;
-          }
-        }
-        setPlayerPosition(position);
-      }
+
     }
 
     // Only allow movement when playing (not during countdown or other states)

@@ -45,7 +45,7 @@ export const Confetti = () => {
     ]
 
     const particles: Particle[] = []
-    const particleCount = 150
+    const particleCount = 100 // Reduced from 150 for performance
 
     // Create particles
     for (let i = 0; i < particleCount; i++) {
@@ -54,7 +54,7 @@ export const Confetti = () => {
         y: -20 - Math.random() * canvas.height,
         vx: (Math.random() - 0.5) * 4,
         vy: Math.random() * 3 + 2,
-        size: Math.random() * 8 + 4,
+        size: Math.random() * 6 + 3, // Reduced size for performance
         color: colors[Math.floor(Math.random() * colors.length)],
         rotation: Math.random() * Math.PI * 2,
         rotationSpeed: (Math.random() - 0.5) * 0.2,
@@ -67,7 +67,10 @@ export const Confetti = () => {
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-      particles.forEach((particle, index) => {
+      // Iterate backwards for safe removal via splice, optimizing for performance
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const particle = particles[i]
+        
         // Update position
         particle.x += particle.vx
         particle.y += particle.vy
@@ -79,10 +82,10 @@ export const Confetti = () => {
           particle.alpha -= 0.02
         }
 
-        // Remove if off screen
+        // Remove if off screen or fully transparent
         if (particle.y > canvas.height + 20 || particle.alpha <= 0) {
-          particles.splice(index, 1)
-          return
+          particles.splice(i, 1) // Safe splice due to backward iteration
+          continue 
         }
 
         // Draw particle
@@ -91,14 +94,14 @@ export const Confetti = () => {
         ctx.translate(particle.x, particle.y)
         ctx.rotate(particle.rotation)
 
-        // Draw as a rectangle with glow
-        ctx.shadowBlur = 10
+        // Draw as a rectangle with glow (Reduced shadow blur for performance)
+        ctx.shadowBlur = 5 // Reduced from 10
         ctx.shadowColor = particle.color
         ctx.fillStyle = particle.color
         ctx.fillRect(-particle.size / 2, -particle.size / 2, particle.size, particle.size)
 
         ctx.restore()
-      })
+      }
 
       if (particles.length > 0) {
         animationId = requestAnimationFrame(animate)

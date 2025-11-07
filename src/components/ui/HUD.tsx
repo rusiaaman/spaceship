@@ -699,7 +699,7 @@ export const HUD = () => {
       
       {gameState === 'finished' && finishTime !== null && (
         <>
-          <Confetti />
+          {playerPosition <= 2 && <Confetti />}
           <FinishOverlay>
           <FinishMessage>
             <RaceTitle>RACE COMPLETE!</RaceTitle>

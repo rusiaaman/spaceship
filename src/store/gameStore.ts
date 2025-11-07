@@ -636,6 +636,7 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
         
         return {
           playerHealth: maxHealth, // Reset health to max
+          playerAmmo: state.playerMaxAmmo, // Refill ammo on respawn
           playerState: newPlayerState,
           playerInvulnerableUntil: currentTime + respawnDuration, // Start invulnerability period
           playerRespawnTime: 0, // Reset timer

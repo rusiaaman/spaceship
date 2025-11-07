@@ -85,7 +85,7 @@ function App() {
           {import.meta.env.DEV && <PerformanceMonitor />}
         </>
       )}
-      {gameState === 'finished' && playerPosition <= 3 && <Confetti />}
+      {gameState === 'finished' && playerPosition <= 2 && <Confetti />}
     </div>
   )
 }
