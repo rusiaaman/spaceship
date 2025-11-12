@@ -11,6 +11,8 @@ import { BoosterManager } from './BoosterManager'
 import { WeaponSystem } from './WeaponSystem'
 import { CombatEffectsManager } from './CombatEffects'
 import { SoundController } from './SoundController'
+import { CameraSweep } from './CameraSweep'
+import { CountdownCamera } from './CountdownCamera'
 import { useGameStore } from '@/store/gameStore'
 import { profiler } from '@/utils/profiler'
 
@@ -30,12 +32,13 @@ const SpatialIndexManager = () => {
 
 export const GameScene = () => {
   const spaceshipRef = useRef<THREE.Group>(null!)
+  const gameState = useGameStore((state) => state.gameState)
 
   return (
     <>
       <SoundController />
       <Canvas
-      camera={{ position: [0, 2, 5], fov: 75, near: 0.1, far: 2000 }}
+      camera={{ position: [0, 2, 5], fov: 75, near: 0.1, far: 6000 }}
       gl={{ 
         antialias: false, // Disable for better performance
         powerPreference: 'high-performance',
@@ -52,6 +55,11 @@ export const GameScene = () => {
       <ambientLight intensity={0.3} />
       <directionalLight position={[10, 10, 5]} intensity={0.4} />
 
+      {/* Camera sweep animation */}
+      {gameState === 'camera-sweep' && <CameraSweep />}
+      {/* Countdown camera - maintains finish line view */}
+      {gameState === 'countdown' && <CountdownCamera />}
+      
       {/* Game elements */}
       <StarField />
       <Cockpit />

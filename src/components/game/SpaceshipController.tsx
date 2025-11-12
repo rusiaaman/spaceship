@@ -88,7 +88,7 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
     }
     
     // Get frequently updated state and setters inside useFrame
-    const { speed, setRaceTime, setSpeed, setDistanceToFinish, aiStandings, setPlayerPosition, playerState, boostEndTime, deactivateBoost, raceTime, fireProjectile, maxSpeed, playerAmmo, checkPlayerRespawn } = useGameStore.getState();
+    const { speed, setRaceTime, setSpeed, setDistanceToFinish, playerState, boostEndTime, deactivateBoost, raceTime, fireProjectile, maxSpeed, playerAmmo, checkPlayerRespawn } = useGameStore.getState();
     
     // Update engine sound based on speed
     soundManager.updateEngineSound(speed, maxSpeed, BitFlagUtils.has(playerState, ShipState.BOOSTING))
@@ -263,23 +263,26 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
     }
 
     // --- Camera Follow ---
-    // Different camera positions based on view mode
-    const idealOffset = cameraView === 'first-person' 
-      ? new THREE.Vector3(0, 2, 5)      // Close first-person view
-      : new THREE.Vector3(0, 8, 20);    // Wider third-person view
-    
-    idealOffset.applyQuaternion(spaceship.quaternion);
-    
-    const idealLookat = new THREE.Vector3(0, 0, -10);
-    idealLookat.applyQuaternion(spaceship.quaternion);
-    idealLookat.add(spaceship.position);
+    // Only update camera during gameplay (not during camera-sweep or countdown)
+    if (gameState === 'playing') {
+      // Different camera positions based on view mode
+      const idealOffset = cameraView === 'first-person' 
+        ? new THREE.Vector3(0, 2, 5)      // Close first-person view
+        : new THREE.Vector3(0, 8, 20);    // Wider third-person view
+      
+      idealOffset.applyQuaternion(spaceship.quaternion);
+      
+      const idealLookat = new THREE.Vector3(0, 0, -10);
+      idealLookat.applyQuaternion(spaceship.quaternion);
+      idealLookat.add(spaceship.position);
 
-    const cameraPosition = new THREE.Vector3();
-    cameraPosition.copy(spaceship.position).add(idealOffset);
+      const cameraPosition = new THREE.Vector3();
+      cameraPosition.copy(spaceship.position).add(idealOffset);
 
-    // Faster camera follow for more responsive controls
-    state.camera.position.lerp(cameraPosition, 0.2);
-    state.camera.lookAt(idealLookat);
+      // Faster camera follow for more responsive controls
+      state.camera.position.lerp(cameraPosition, 0.2);
+      state.camera.lookAt(idealLookat);
+    }
     
     profiler.end('SpaceshipController.frame')
   })

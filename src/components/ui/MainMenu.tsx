@@ -152,7 +152,7 @@ export const MainMenu = () => {
   const handleStart = () => {
     // Initialize audio context on user interaction (required by browsers)
     soundManager.playSound('boost-collect') // Play a quick sound to initialize audio context
-    setGameState('countdown')
+    setGameState('camera-sweep')
   }
   
   const sizeConfig = SHIP_SIZE_CLASSES[playerSizeClass]

@@ -8,7 +8,7 @@ import { EventScheduler, GameEventType } from '@/utils/PriorityQueue'
 import { GameSpatialIndices } from '@/utils/SpatialIndex'
 import { ShipState, ProjectileState, BitFlagUtils } from '@/utils/BitFlags'
 
-export type GameState = 'menu' | 'playing' | 'paused' | 'countdown' | 'finished'
+export type GameState = 'menu' | 'camera-sweep' | 'playing' | 'paused' | 'countdown' | 'finished'
 export type CameraView = 'first-person' | 'third-person'
 
 interface AIStanding {

@@ -2,7 +2,7 @@
 import { useMemo, useRef, forwardRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { GAME_CONSTANTS } from '@/utils/constants';
-import { Cylinder, Torus } from '@react-three/drei';
+import { Cylinder, Torus, Text3D, Center } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '@/store/gameStore';
 import { profiler } from '@/utils/profiler';
@@ -68,6 +68,32 @@ const FinishDisk = () => {
       {/* Single glowing ring - reduced segments */}
       <Torus args={[FINISH_DISK_RADIUS * 0.8, 0.5, 8, 32]}>
         <meshBasicMaterial color="#00ff00" transparent opacity={0.5} />
+      </Torus>
+      
+      {/* 3D Text Label - Always visible, glowing, positioned for optimal camera view */}
+      <Center position={[0, 55, 0]} rotation-y={Math.PI}>
+        <Text3D
+          font="/fonts/Orbitron_Bold.json"
+          size={18}
+          height={3}
+          curveSegments={12}
+          bevelEnabled
+          bevelThickness={0.8}
+          bevelSize={0.5}
+          bevelOffset={0}
+          bevelSegments={5}
+        >
+          FINISH LINE
+          <meshBasicMaterial 
+            color="#00ff00" 
+            toneMapped={false}
+          />
+        </Text3D>
+      </Center>
+      
+      {/* Additional glow ring for better visibility from distance */}
+      <Torus args={[FINISH_DISK_RADIUS * 1.1, 0.8, 8, 32]} position={[0, 0, 0]}>
+        <meshBasicMaterial color="#00ff00" transparent opacity={0.3} />
       </Torus>
     </group>
   );
@@ -208,9 +234,33 @@ const AIManager = () => {
   const lastAIUpdateFrame = useRef(0)
   const aiBoosterCooldownRef = useRef<number[]>([]) // Cooldown tracking for each AI
 
-  // Initialize or reset AI states when entering menu or countdown
+  // Initialize AI states immediately (not in useEffect to avoid timing issues)
+  if (aiStateRef.current.length === 0 || !initOnceRef.current) {
+    aiStateRef.current = aiShipsData.map((d) => {
+      const sizeConfig = getAISizeConfig(d.id)
+      const variance = 1 + (Math.random() * 2 - 1) * AI_SPEED_VARIANCE
+      // Use size-specific max speed
+      const speed = sizeConfig.maxSpeed * AI_SPEED_MULTIPLIER * variance
+      return {
+        id: d.id,
+        name: d.name,
+        color: d.color,
+        baseX: d.baseX,
+        z: d.initialZ,
+        speed,
+        phase: Math.random() * Math.PI * 2,
+        xOffset: 0,
+        finished: false,
+      }
+    })
+    finishOrderRef.current = []
+    aiEndedRef.current = false
+    initOnceRef.current = true
+  }
+
+  // Reset AI states when entering menu, camera-sweep, or countdown
   useEffect(() => {
-    if (gameState === 'menu' || gameState === 'countdown' || !initOnceRef.current) {
+    if (gameState === 'menu' || gameState === 'camera-sweep' || gameState === 'countdown') {
       aiStateRef.current = aiShipsData.map((d) => {
         const sizeConfig = getAISizeConfig(d.id)
         const variance = 1 + (Math.random() * 2 - 1) * AI_SPEED_VARIANCE
@@ -230,9 +280,8 @@ const AIManager = () => {
       })
       finishOrderRef.current = []
       aiEndedRef.current = false
-      initOnceRef.current = true
     }
-  }, [aiShipsData, gameState, MAX_SPEED, AI_SPEED_MULTIPLIER, AI_SPEED_VARIANCE])
+  }, [aiShipsData, gameState, MAX_SPEED, AI_SPEED_MULTIPLIER, AI_SPEED_VARIANCE, getAISizeConfig])
 
   useFrame((state, delta) => {
     profiler.start('AIManager.frame')
