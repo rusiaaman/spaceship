@@ -89,7 +89,7 @@ export class NetworkManager {
   /**
    * Connect to signaling server and create/join room
    */
-  async connect(roomId?: string): Promise<{ roomId: string; isHost: boolean }> {
+  async connect(roomId?: string): Promise<{ roomId: string; isHost: boolean; hostId: string }> {
     await this.signaling.connect();
     this.myPlayerId = this.signaling.getSocketId();
 
@@ -100,10 +100,8 @@ export class NetworkManager {
       this.isHost = result.isHost;
       this.hostId = result.hostId;
 
-      // Connect to existing players (non-host only connects to host initially)
-      if (!this.isHost) {
-        await this.connectToPeer(result.hostId, true);
-      }
+      // Non-host waits for host to initiate connection
+      // The host will send an offer when onPlayerJoined fires
 
       return result;
     } else {
@@ -113,8 +111,15 @@ export class NetworkManager {
       this.isHost = result.isHost;
       this.hostId = this.myPlayerId;
 
-      return result;
+      return { ...result, hostId: this.myPlayerId! };
     }
+  }
+
+  /**
+   * Get list of connected peer IDs
+   */
+  getConnectedPeerIds(): string[] {
+    return Array.from(this.peers.keys());
   }
 
   /**
@@ -125,7 +130,7 @@ export class NetworkManager {
     
     peer.setCallbacks({
       onOpen: () => {
-        console.log('[Network] Connected to peer:', peerId);
+        console.log('[Network] Data channel opened with peer:', peerId);
         this.callbacks.onConnected?.();
       },
       onClose: () => {
@@ -166,7 +171,7 @@ export class NetworkManager {
       
       peer.setCallbacks({
         onOpen: () => {
-          console.log('[Network] Connected to peer:', senderId);
+          console.log('[Network] Data channel opened with peer:', senderId);
           this.callbacks.onConnected?.();
         },
         onClose: () => {

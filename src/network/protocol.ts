@@ -37,6 +37,9 @@ export enum MessageType {
   // Ping/latency
   PING = 14,
   PONG = 15,
+  
+  // Player list sync
+  PLAYER_LIST = 16,
 }
 
 // Player input state (sent from peer to host)
@@ -165,6 +168,15 @@ export interface PlayerFinishedEvent {
   playerId: string;
   finishTime: number;
   position: number;
+}
+
+// Player list event
+export interface PlayerListEvent {
+  players: Array<{
+    id: string;
+    name: string;
+    sizeClass: string;
+  }>;
 }
 
 // Network message wrapper

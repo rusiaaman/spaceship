@@ -7,6 +7,7 @@ import styled from '@emotion/styled';
 import { useGameStore } from '@/store/gameStore';
 import { useMultiplayerStore } from '@/multiplayer/MultiplayerGameStore';
 import { NetworkManager } from '@/network/NetworkManager';
+import { getMultiplayerController } from '@/multiplayer/MultiplayerController';
 
 interface LobbyMenuProps {
   onStartGame: () => void;
@@ -417,16 +418,38 @@ export function LobbyMenu({ onStartGame, onBackToMenu }: LobbyMenuProps) {
         onPlayerJoined: (playerId) => {
           console.log('[Lobby] Player joined:', playerId);
           multiplayerStore.addRemotePlayer(playerId, 'Player');
+          
+          // If we're host, send the current player list to the new player
+          // This will be sent when the data channel opens via onConnected
+          if (multiplayerStore.isHost) {
+            // Small delay to ensure peer connection is established
+            setTimeout(() => {
+              const controller = getMultiplayerController();
+              controller.sendPlayerListToPeer(playerId);
+            }, 1000); // Increased delay to ensure data channel is ready
+          }
         },
         onPlayerLeft: (playerId) => {
           console.log('[Lobby] Player left:', playerId);
           multiplayerStore.removeRemotePlayer(playerId);
+          
+          // Update connection status
+          const peerCount = networkManager.getPeerCount();
+          if (peerCount === 0) {
+            multiplayerStore.setIsConnected(false);
+          }
         },
         onConnected: () => {
+          console.log('[Lobby] Peer data channel connected');
           multiplayerStore.setIsConnected(true);
         },
         onDisconnected: () => {
-          multiplayerStore.setIsConnected(false);
+          console.log('[Lobby] Peer data channel disconnected');
+          // Only set disconnected if no other peers are connected
+          const peerCount = networkManager.getPeerCount();
+          if (peerCount === 0 || !networkManager.isConnected()) {
+            multiplayerStore.setIsConnected(false);
+          }
         }
       });
 
@@ -438,6 +461,10 @@ export function LobbyMenu({ onStartGame, onBackToMenu }: LobbyMenuProps) {
       multiplayerStore.setRoomId(result.roomId);
       multiplayerStore.setMyPlayerId(networkManager.getPlayerId());
       multiplayerStore.playerNames.set(networkManager.getPlayerId()!, playerName);
+
+      // Initialize multiplayer controller
+      const controller = getMultiplayerController();
+      controller.initialize();
 
       console.log('[Lobby] Room created:', result.roomId);
     } catch (error) {
@@ -463,16 +490,38 @@ export function LobbyMenu({ onStartGame, onBackToMenu }: LobbyMenuProps) {
         onPlayerJoined: (playerId) => {
           console.log('[Lobby] Player joined:', playerId);
           multiplayerStore.addRemotePlayer(playerId, 'Player');
+          
+          // If we're host, send the current player list to the new player
+          // This will be sent when the data channel opens via onConnected
+          if (multiplayerStore.isHost) {
+            // Small delay to ensure peer connection is established
+            setTimeout(() => {
+              const controller = getMultiplayerController();
+              controller.sendPlayerListToPeer(playerId);
+            }, 1000); // Increased delay to ensure data channel is ready
+          }
         },
         onPlayerLeft: (playerId) => {
           console.log('[Lobby] Player left:', playerId);
           multiplayerStore.removeRemotePlayer(playerId);
+          
+          // Update connection status
+          const peerCount = networkManager.getPeerCount();
+          if (peerCount === 0) {
+            multiplayerStore.setIsConnected(false);
+          }
         },
         onConnected: () => {
+          console.log('[Lobby] Peer data channel connected');
           multiplayerStore.setIsConnected(true);
         },
         onDisconnected: () => {
-          multiplayerStore.setIsConnected(false);
+          console.log('[Lobby] Peer data channel disconnected');
+          // Only set disconnected if no other peers are connected
+          const peerCount = networkManager.getPeerCount();
+          if (peerCount === 0 || !networkManager.isConnected()) {
+            multiplayerStore.setIsConnected(false);
+          }
         }
       });
 
@@ -485,6 +534,16 @@ export function LobbyMenu({ onStartGame, onBackToMenu }: LobbyMenuProps) {
       multiplayerStore.setMyPlayerId(networkManager.getPlayerId());
       multiplayerStore.playerNames.set(networkManager.getPlayerId()!, playerName);
 
+      // Initialize multiplayer controller
+      const controller = getMultiplayerController();
+      controller.initialize();
+
+      // If joining as non-host, add the host as a remote player
+      if (!result.isHost && result.hostId) {
+        multiplayerStore.addRemotePlayer(result.hostId, 'Host');
+        console.log('[Lobby] Added host as remote player:', result.hostId);
+      }
+
       console.log('[Lobby] Joined room:', result.roomId);
     } catch (error) {
       console.error('[Lobby] Failed to join room:', error);
@@ -494,11 +553,18 @@ export function LobbyMenu({ onStartGame, onBackToMenu }: LobbyMenuProps) {
     }
   };
 
-  const handleStartGame = async () => {
+  const handleStartGame = () => {
     if (!multiplayerStore.isHost) return;
     
+    // Check if all peers are connected
+    const networkManager = multiplayerStore.networkManager;
+    if (!networkManager || !networkManager.isConnected()) {
+      console.warn('[Lobby] Cannot start game - peers not connected');
+      multiplayerStore.setConnectionError('Waiting for all players to connect...');
+      return;
+    }
+    
     // Broadcast game start to all players
-    const { getMultiplayerController } = await import('@/multiplayer/MultiplayerController');
     const controller = getMultiplayerController();
     controller.broadcastGameStart();
     
@@ -568,10 +634,13 @@ export function LobbyMenu({ onStartGame, onBackToMenu }: LobbyMenuProps) {
             {multiplayerStore.isHost ? (
               <Button
                 onClick={handleStartGame}
-                disabled={multiplayerStore.remotePlayers.size === 0}
+                disabled={
+                  multiplayerStore.remotePlayers.size === 0 || 
+                  !multiplayerStore.isConnected
+                }
                 style={{ flex: 2 }}
               >
-                Start Game
+                {multiplayerStore.isConnected ? 'Start Game' : 'Connecting...'}
               </Button>
             ) : (
               <Button disabled style={{ flex: 2 }}>

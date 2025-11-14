@@ -126,6 +126,10 @@ export class MultiplayerController {
         this.latencyMonitor.handlePong(message.data.pingId);
         break;
 
+      case MessageType.PLAYER_LIST:
+        this.handlePlayerList(message.data);
+        break;
+
       default:
         console.warn('[Multiplayer] Unhandled message type:', message.type);
     }
@@ -138,6 +142,31 @@ export class MultiplayerController {
     const gameStore = useGameStore.getState();
     gameStore.setGameState('camera-sweep');
     console.log('[Multiplayer] Game started by host');
+  }
+
+  /**
+   * Handle player list message
+   */
+  private handlePlayerList(data: any): void {
+    const multiplayerStore = useMultiplayerStore.getState();
+    
+    console.log('[Multiplayer] Received player list:', data.players);
+    
+    // Add all players from the list (except ourselves)
+    for (const playerInfo of data.players) {
+      if (playerInfo.id !== multiplayerStore.myPlayerId) {
+        // Check if player already exists
+        if (!multiplayerStore.remotePlayers.has(playerInfo.id)) {
+          multiplayerStore.addRemotePlayer(playerInfo.id, playerInfo.name);
+          console.log('[Multiplayer] Added player from list:', playerInfo.name);
+        }
+        
+        // Update their size class
+        multiplayerStore.updateRemotePlayer(playerInfo.id, {
+          sizeClass: playerInfo.sizeClass
+        });
+      }
+    }
   }
 
 
@@ -211,6 +240,46 @@ export class MultiplayerController {
     });
 
     multiplayerStore.networkManager?.broadcast(message);
+  }
+
+  /**
+   * Broadcast player list to a specific peer (host only)
+   */
+  sendPlayerListToPeer(peerId: string): void {
+    const multiplayerStore = useMultiplayerStore.getState();
+    const gameStore = useGameStore.getState();
+    
+    if (!multiplayerStore.isHost) {
+      return;
+    }
+
+    // Build player list including host and all remote players
+    const players = [];
+    
+    // Add host (ourselves)
+    if (multiplayerStore.myPlayerId) {
+      players.push({
+        id: multiplayerStore.myPlayerId,
+        name: multiplayerStore.playerNames.get(multiplayerStore.myPlayerId) || 'Host',
+        sizeClass: gameStore.playerSizeClass
+      });
+    }
+    
+    // Add all remote players
+    for (const [playerId, playerName] of multiplayerStore.playerNames.entries()) {
+      if (playerId !== multiplayerStore.myPlayerId) {
+        const remotePlayer = multiplayerStore.remotePlayers.get(playerId);
+        players.push({
+          id: playerId,
+          name: playerName,
+          sizeClass: remotePlayer?.state.sizeClass || 'MEDIUM'
+        });
+      }
+    }
+
+    const message = createMessage(MessageType.PLAYER_LIST, { players });
+    multiplayerStore.networkManager?.sendTo(peerId, message);
+    console.log('[Multiplayer] Sent player list to', peerId, ':', players);
   }
 
   /**
