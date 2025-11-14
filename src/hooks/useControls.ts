@@ -31,31 +31,8 @@ export const useControls = () => {
     mouseDeltaY: 0,
   })
 
-  const isPointerLocked = useRef(false)
   // Use ref to store mouse deltas to avoid state updates on every mouse move
   const mouseDeltaRef = useRef({ x: 0, y: 0 })
-
-  useEffect(() => {
-    // Request pointer lock on first click
-    const handleClick = () => {
-      if (!isPointerLocked.current) {
-        document.body.requestPointerLock()
-      }
-    }
-
-    // Track pointer lock state
-    const handlePointerLockChange = () => {
-      isPointerLocked.current = document.pointerLockElement === document.body
-    }
-
-    document.addEventListener('click', handleClick)
-    document.addEventListener('pointerlockchange', handlePointerLockChange)
-
-    return () => {
-      document.removeEventListener('click', handleClick)
-      document.removeEventListener('pointerlockchange', handlePointerLockChange)
-    }
-  }, [])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -138,8 +115,8 @@ export const useControls = () => {
     }
 
     const handleMouseMove = (e: MouseEvent) => {
-      // Only process mouse movement when pointer is locked
-      if (!isPointerLocked.current) return
+      // Always process mouse movement when pointer is locked (checking document.pointerLockElement)
+      if (!document.pointerLockElement) return
 
       // Store in ref instead of state to avoid re-renders
       mouseDeltaRef.current.x = e.movementX || 0

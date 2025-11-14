@@ -17,6 +17,40 @@ const HUDContainer = styled.div`
   color: var(--hud-cyan);
 `
 
+const PointerLockHint = styled.div<{ isVisible: boolean }>`
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 20px 40px;
+  background: rgba(0, 0, 0, 0.9);
+  border: 2px solid var(--hud-cyan);
+  border-radius: 12px;
+  color: var(--hud-cyan);
+  font-size: 18px;
+  text-align: center;
+  pointer-events: all;
+  opacity: ${props => props.isVisible ? 1 : 0};
+  visibility: ${props => props.isVisible ? 'visible' : 'hidden'};
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 0 30px rgba(0, 212, 255, 0.5);
+  z-index: 1000;
+  
+  .hint-title {
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    text-shadow: 0 0 10px var(--glow-blue);
+  }
+  
+  .hint-text {
+    font-size: 16px;
+    opacity: 0.9;
+    line-height: 1.5;
+  }
+`
+
 const TopBar = styled.div`
   position: absolute;
   top: 20px;
@@ -515,24 +549,6 @@ const CameraMode = styled.div`
   letter-spacing: 2px;
 `
 
-const PointerLockHint = styled.div`
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 24px;
-  color: var(--hud-cyan);
-  text-shadow: 0 0 20px var(--glow-blue);
-  text-align: center;
-  pointer-events: none;
-  animation: fadeInOut 2s ease-in-out infinite;
-  
-  @keyframes fadeInOut {
-    0%, 100% { opacity: 0.4; }
-    50% { opacity: 1; }
-  }
-`
-
 export const HUD = () => {
   // Optimize subscriptions - use individual selectors for primitives
   const speed = useGameStore(state => state.speed)
@@ -550,8 +566,8 @@ export const HUD = () => {
   const playerState = useGameStore(state => state.playerState)
   const lastShotTime = useGameStore(state => state.lastShotTime)
 
-  const [isPointerLocked, setIsPointerLocked] = useState(false)
   const [showDamageFlash, setShowDamageFlash] = useState(false)
+  const [showPointerLockHint, setShowPointerLockHint] = useState(false)
   const prevHealthRef = useRef(playerHealth)
 
   // Get static or infrequent values without subscription
@@ -576,15 +592,49 @@ export const HUD = () => {
     prevHealthRef.current = playerHealth
   }, [playerHealth])
 
-  // Track pointer lock state
+  // Monitor pointer lock status during gameplay
   useEffect(() => {
-    const handlePointerLockChange = () => {
-      setIsPointerLocked(document.pointerLockElement === document.body)
+    if (gameState !== 'playing') {
+      setShowPointerLockHint(false)
+      return
     }
 
+    let hintTimeout: number
+
+    const checkPointerLock = () => {
+      if (!document.pointerLockElement) {
+        hintTimeout = window.setTimeout(() => {
+          setShowPointerLockHint(true)
+        }, 2000) // Show hint after 2 seconds if not locked
+      } else {
+        setShowPointerLockHint(false)
+      }
+    }
+
+    const handlePointerLockChange = () => {
+      if (document.pointerLockElement) {
+        setShowPointerLockHint(false)
+        if (hintTimeout) clearTimeout(hintTimeout)
+      } else {
+        checkPointerLock()
+      }
+    }
+
+    const handleClick = () => {
+      setShowPointerLockHint(false)
+    }
+
+    checkPointerLock()
     document.addEventListener('pointerlockchange', handlePointerLockChange)
-    return () => document.removeEventListener('pointerlockchange', handlePointerLockChange)
-  }, [])
+    document.addEventListener('click', handleClick)
+
+    return () => {
+      document.removeEventListener('pointerlockchange', handlePointerLockChange)
+      document.removeEventListener('click', handleClick)
+      if (hintTimeout) clearTimeout(hintTimeout)
+    }
+  }, [gameState])
+
 
   // Countdown logic
   useEffect(() => {
@@ -687,11 +737,16 @@ export const HUD = () => {
         ESC - Pause
       </Controls>
 
-      {gameState === 'playing' && !isPointerLocked && (
-        <PointerLockHint>
-          Click to capture mouse
+      {/* Pointer Lock Hint */}
+      {showPointerLockHint && (
+        <PointerLockHint isVisible={showPointerLockHint}>
+          <div className="hint-title">🖱️ Click to Control</div>
+          <div className="hint-text">
+            Click anywhere to lock mouse and control your ship
+          </div>
         </PointerLockHint>
       )}
+
       
       {gameState === 'countdown' && (
         <CountdownOverlay>{countdownText}</CountdownOverlay>

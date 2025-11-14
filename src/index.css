@@ -14,6 +14,16 @@ body {
   overflow: hidden;
 }
 
+/* Hide cursor only when pointer is locked (during gameplay) */
+body.pointer-locked {
+  cursor: none;
+}
+
+/* Hide browser's pointer lock UI */
+body:fullscreen::backdrop {
+  cursor: none;
+}
+
 #root {
   width: 100vw;
   height: 100vh;

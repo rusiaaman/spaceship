@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import styled from '@emotion/styled'
 import { useGameStore } from '@/store/gameStore'
 import { soundManager } from '@/utils/soundManager'
@@ -50,6 +51,7 @@ const Button = styled.button`
   text-transform: uppercase;
   letter-spacing: 4px;
   box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+  pointer-events: all;
   
   &:hover {
     background: var(--hud-cyan);
@@ -60,6 +62,11 @@ const Button = styled.button`
   
   &:active {
     transform: scale(0.98);
+  }
+  
+  &:focus-visible {
+    outline: 2px solid var(--hud-cyan);
+    outline-offset: 4px;
   }
 `
 
@@ -97,7 +104,7 @@ const SizeGrid = styled.div`
   margin-bottom: 20px;
 `
 
-const SizeButton = styled.button<{ isSelected: boolean }>`
+const SizeButton = styled.button<{ isSelected: boolean; isFocused?: boolean }>`
   padding: 16px 12px;
   font-family: 'Orbitron', monospace;
   background: ${props => props.isSelected ? 'var(--hud-cyan)' : 'rgba(0, 0, 0, 0.5)'};
@@ -107,11 +114,19 @@ const SizeButton = styled.button<{ isSelected: boolean }>`
   cursor: pointer;
   transition: all 0.3s ease;
   font-size: 14px;
+  outline: ${props => props.isFocused ? '2px solid var(--hud-cyan)' : 'none'};
+  outline-offset: 4px;
+  pointer-events: all;
   
   &:hover {
     background: ${props => props.isSelected ? 'var(--hud-cyan)' : 'rgba(0, 212, 255, 0.2)'};
     border-color: var(--hud-cyan);
     transform: scale(1.05);
+  }
+  
+  &:focus-visible {
+    outline: 2px solid var(--hud-cyan);
+    outline-offset: 4px;
   }
   
   .size-name {
@@ -148,6 +163,10 @@ export const MainMenu = () => {
   const setGameState = useGameStore((state) => state.setGameState)
   const playerSizeClass = useGameStore((state) => state.playerSizeClass)
   const setPlayerSizeClass = useGameStore((state) => state.setPlayerSizeClass)
+  
+  const [focusedIndex, setFocusedIndex] = useState<number>(-1)
+  const startButtonRef = useRef<HTMLButtonElement>(null)
+  const sizeClasses = Object.keys(SHIP_SIZE_CLASSES) as ShipSizeClass[]
 
   const handleStart = () => {
     // Initialize audio context on user interaction (required by browsers)
@@ -157,6 +176,40 @@ export const MainMenu = () => {
   
   const sizeConfig = SHIP_SIZE_CLASSES[playerSizeClass]
 
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        const currentIndex = sizeClasses.indexOf(playerSizeClass)
+        const newIndex = currentIndex > 0 ? currentIndex - 1 : sizeClasses.length - 1
+        setPlayerSizeClass(sizeClasses[newIndex])
+        setFocusedIndex(newIndex)
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        const currentIndex = sizeClasses.indexOf(playerSizeClass)
+        const newIndex = currentIndex < sizeClasses.length - 1 ? currentIndex + 1 : 0
+        setPlayerSizeClass(sizeClasses[newIndex])
+        setFocusedIndex(newIndex)
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        if (focusedIndex === -1) {
+          handleStart()
+        }
+      } else if (e.key === 'ArrowDown' || e.key === 'Tab') {
+        e.preventDefault()
+        setFocusedIndex(-1)
+        startButtonRef.current?.focus()
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setFocusedIndex(sizeClasses.indexOf(playerSizeClass))
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [playerSizeClass, setPlayerSizeClass, focusedIndex, sizeClasses])
+
   return (
     <MenuContainer>
       <Title>SPACE ODYSSEY</Title>
@@ -164,14 +217,20 @@ export const MainMenu = () => {
       <SizeSelector>
         <SizeSelectorTitle>SELECT SHIP SIZE</SizeSelectorTitle>
         <SizeGrid>
-          {(Object.keys(SHIP_SIZE_CLASSES) as ShipSizeClass[]).map((sizeClass) => {
+          {sizeClasses.map((sizeClass, index) => {
             const config = SHIP_SIZE_CLASSES[sizeClass]
             const isSelected = playerSizeClass === sizeClass
+            const isFocused = focusedIndex === index
             return (
               <SizeButton
                 key={sizeClass}
                 isSelected={isSelected}
-                onClick={() => setPlayerSizeClass(sizeClass)}
+                isFocused={isFocused}
+                onClick={() => {
+                  setPlayerSizeClass(sizeClass)
+                  setFocusedIndex(index)
+                }}
+                onMouseEnter={() => setFocusedIndex(index)}
               >
                 <span className="size-name">{config.name}</span>
                 <span className="size-scale">×{config.scale.toFixed(1)}</span>
@@ -203,7 +262,7 @@ export const MainMenu = () => {
         </SizeStats>
       </SizeSelector>
       
-      <Button onClick={handleStart}>START RACE</Button>
+      <Button ref={startButtonRef} onClick={handleStart}>START RACE</Button>
       <Subtitle>
         Race through the cosmos at hyperspeed.<br />
         Master your controls and claim victory.
