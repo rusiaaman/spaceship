@@ -3,6 +3,8 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useControls } from '@/hooks/useControls'
 import { useGameStore } from '@/store/gameStore'
+import { useMultiplayerStore } from '@/multiplayer/MultiplayerGameStore'
+import { getMultiplayerController } from '@/multiplayer/MultiplayerController'
 import { GAME_CONSTANTS } from '@/utils/constants'
 import { profiler } from '@/utils/profiler'
 import { ShipState, BitFlagUtils } from '@/utils/BitFlags'
@@ -85,6 +87,13 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
     // Update player position for weapon system
     if ((window as any).__weaponSystemRefs) {
       (window as any).__weaponSystemRefs.playerPosition.copy(spaceship.position)
+    }
+
+    // Send inputs to multiplayer controller
+    const multiplayerStore = useMultiplayerStore.getState();
+    if (multiplayerStore.isMultiplayer && !multiplayerStore.isHost) {
+      const controller = getMultiplayerController();
+      controller.update(delta, controls);
     }
     
     // Get frequently updated state and setters inside useFrame

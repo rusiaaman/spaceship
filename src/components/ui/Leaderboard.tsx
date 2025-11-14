@@ -1,5 +1,6 @@
 import styled from '@emotion/styled'
 import { useGameStore } from '@/store/gameStore'
+import { useMultiplayerStore } from '@/multiplayer/MultiplayerGameStore'
 
 
 const LeaderboardContainer = styled.div`
@@ -86,14 +87,32 @@ export const Leaderboard = () => {
   const playerPosition = useGameStore(state => state.playerPosition)
   const distanceToFinish = useGameStore(state => state.distanceToFinish)
   const gameState = useGameStore(state => state.gameState)
+  
+  const isMultiplayer = useMultiplayerStore(state => state.isMultiplayer)
+  const remotePlayers = useMultiplayerStore(state => state.remotePlayers)
 
   if (gameState !== 'playing') return null
 
-  // Combine player and AI standings
+  // Combine player, remote players, and AI standings
   const allRacers = [
     { name: 'YOU', distance: distanceToFinish, position: playerPosition, isPlayer: true },
     ...aiStandings.map((ai) => ({ ...ai, isPlayer: false }))
-  ].sort((a, b) => a.position - b.position)
+  ];
+
+  // Add remote players if in multiplayer
+  if (isMultiplayer) {
+    for (const player of remotePlayers.values()) {
+      allRacers.push({
+        name: player.name,
+        distance: player.state.distanceToFinish,
+        position: player.state.racePosition,
+        isPlayer: false
+      });
+    }
+  }
+
+  // Sort by position
+  allRacers.sort((a, b) => a.position - b.position);
 
   return (
     <LeaderboardContainer>

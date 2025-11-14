@@ -1,0 +1,15 @@
+{
+  "name": "spaceship-signaling-server",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "WebRTC signaling server for spaceship multiplayer game",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.6.1"
+  }
+}

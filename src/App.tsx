@@ -7,17 +7,21 @@ import { PauseMenu } from './components/ui/PauseMenu'
 import { PerformanceMonitor } from './components/ui/PerformanceMonitor'
 import { Confetti } from './components/ui/Confetti'
 import { VirtualCursor } from './components/ui/VirtualCursor'
+import { LobbyMenu } from './components/ui/LobbyMenu'
+import { ConnectionStatus } from './components/ui/ConnectionStatus'
 import { soundManager } from './utils/soundManager'
+import { useMultiplayerStore } from './multiplayer/MultiplayerGameStore'
 
 
 function App() {
   const gameState = useGameStore((state) => state.gameState)
   const setGameState = useGameStore((state) => state.setGameState)
   const playerPosition = useGameStore((state) => state.playerPosition)
+  const isMultiplayer = useMultiplayerStore((state) => state.isMultiplayer)
 
   // Start background music when in menu, stop during gameplay
   useEffect(() => {
-    if (gameState === 'menu') {
+    if (gameState === 'menu' || (gameState as string) === 'multiplayer-lobby') {
       soundManager.playBackgroundMusic()
     } else {
       soundManager.stopBackgroundMusic()
@@ -26,7 +30,7 @@ function App() {
 
   // Manage pointer lock and cursor visibility based on game state
   useEffect(() => {
-    const shouldUnlock = gameState === 'menu' || gameState === 'paused' || gameState === 'finished' || gameState === 'camera-sweep'
+    const shouldUnlock = gameState === 'menu' || gameState === 'paused' || gameState === 'finished' || gameState === 'camera-sweep' || gameState === 'multiplayer-lobby'
     const shouldLock = gameState === 'countdown' || gameState === 'playing'
 
     if (shouldUnlock && document.pointerLockElement) {
@@ -130,16 +134,27 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [gameState, setGameState])
 
-  // Show virtual cursor only in menu and pause states (not during gameplay)
+  // Show virtual cursor only in menu and pause states (not during gameplay or multiplayer lobby)
   const showVirtualCursor = gameState === 'menu' || gameState === 'paused'
 
   return (
     <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
       {gameState === 'menu' && <MainMenu />}
-      {gameState !== 'menu' && (
+      {gameState === 'multiplayer-lobby' && (
+        <LobbyMenu
+          onStartGame={() => setGameState('camera-sweep')}
+          onBackToMenu={() => setGameState('menu')}
+        />
+      )}
+      {gameState !== 'menu' && gameState !== 'multiplayer-lobby' && (
         <>
           <GameScene />
-          {(gameState === 'playing' || gameState === 'countdown' || gameState === 'finished') && <HUD />}
+          {(gameState === 'playing' || gameState === 'countdown' || gameState === 'finished') && (
+            <>
+              <HUD />
+              {isMultiplayer && <ConnectionStatus />}
+            </>
+          )}
           {gameState === 'paused' && <PauseMenu />}
           {import.meta.env.DEV && <PerformanceMonitor />}
         </>

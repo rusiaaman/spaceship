@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useEffect } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
 import * as THREE from 'three'
@@ -13,7 +13,11 @@ import { CombatEffectsManager } from './CombatEffects'
 import { SoundController } from './SoundController'
 import { CameraSweep } from './CameraSweep'
 import { CountdownCamera } from './CountdownCamera'
+import { RemotePlayersManager } from './RemotePlayersManager'
+import { RemoteAIManager } from './RemoteAIManager'
 import { useGameStore } from '@/store/gameStore'
+import { useMultiplayerStore } from '@/multiplayer/MultiplayerGameStore'
+import { getMultiplayerController } from '@/multiplayer/MultiplayerController'
 import { profiler } from '@/utils/profiler'
 
 // Spatial Index Manager - rebuilds indices when needed
@@ -30,9 +34,35 @@ const SpatialIndexManager = () => {
   return null
 }
 
+// Multiplayer Update Manager
+const MultiplayerUpdateManager = () => {
+  useFrame((_, delta) => {
+    const multiplayerStore = useMultiplayerStore.getState();
+    if (multiplayerStore.isMultiplayer) {
+      const controller = getMultiplayerController();
+      controller.update(delta);
+    }
+  });
+  
+  return null;
+}
+
 export const GameScene = () => {
   const spaceshipRef = useRef<THREE.Group>(null!)
   const gameState = useGameStore((state) => state.gameState)
+  const isMultiplayer = useMultiplayerStore((state) => state.isMultiplayer)
+
+  // Initialize multiplayer controller when entering game
+  useEffect(() => {
+    if (isMultiplayer && gameState !== 'menu' && gameState !== 'multiplayer-lobby') {
+      const controller = getMultiplayerController();
+      controller.initialize();
+      
+      return () => {
+        // Don't cleanup here, only when leaving multiplayer entirely
+      };
+    }
+  }, [isMultiplayer, gameState]);
 
   return (
     <>
@@ -68,6 +98,15 @@ export const GameScene = () => {
       <WeaponSystem />
       <CombatEffectsManager />
       <SpatialIndexManager />
+      <MultiplayerUpdateManager />
+      
+      {/* Remote players and AI */}
+      {isMultiplayer && (
+        <>
+          <RemotePlayersManager />
+          <RemoteAIManager />
+        </>
+      )}
       
       <group ref={spaceshipRef} />
       <SpaceshipController ref={spaceshipRef} />

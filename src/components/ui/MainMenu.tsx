@@ -165,8 +165,18 @@ export const MainMenu = () => {
   const setPlayerSizeClass = useGameStore((state) => state.setPlayerSizeClass)
   
   const [focusedIndex, setFocusedIndex] = useState<number>(-1)
+  const [showModeSelect, setShowModeSelect] = useState(true)
   const startButtonRef = useRef<HTMLButtonElement>(null)
   const sizeClasses = Object.keys(SHIP_SIZE_CLASSES) as ShipSizeClass[]
+
+  const handleSinglePlayer = () => {
+    setShowModeSelect(false)
+  }
+
+  const handleMultiplayer = () => {
+    // Navigate to multiplayer lobby
+    setGameState('multiplayer-lobby' as any)
+  }
 
   const handleStart = () => {
     // Initialize audio context on user interaction (required by browsers)
@@ -209,6 +219,25 @@ export const MainMenu = () => {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [playerSizeClass, setPlayerSizeClass, focusedIndex, sizeClasses])
+
+  // Show mode selection first
+  if (showModeSelect) {
+    return (
+      <MenuContainer>
+        <Title>SPACE ODYSSEY</Title>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '40px' }}>
+          <Button onClick={handleSinglePlayer}>SINGLE PLAYER</Button>
+          <Button onClick={handleMultiplayer}>MULTIPLAYER</Button>
+        </div>
+
+        <Subtitle>
+          Race through the cosmos at hyperspeed.<br />
+          Master your controls and claim victory.
+        </Subtitle>
+      </MenuContainer>
+    )
+  }
 
   return (
     <MenuContainer>
@@ -262,7 +291,22 @@ export const MainMenu = () => {
         </SizeStats>
       </SizeSelector>
       
-      <Button ref={startButtonRef} onClick={handleStart}>START RACE</Button>
+      <div style={{ display: 'flex', gap: '20px' }}>
+        <Button 
+          onClick={() => setShowModeSelect(true)}
+          style={{ flex: 1, padding: '20px 40px' }}
+        >
+          BACK
+        </Button>
+        <Button 
+          ref={startButtonRef} 
+          onClick={handleStart}
+          style={{ flex: 2 }}
+        >
+          START RACE
+        </Button>
+      </div>
+      
       <Subtitle>
         Race through the cosmos at hyperspeed.<br />
         Master your controls and claim victory.
