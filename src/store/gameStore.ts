@@ -243,10 +243,8 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
   
   setSpeed: (speed) => {
     const newSpeed = typeof speed === 'function' ? speed(useGameStore.getState().speed) : speed
-    // Only update if changed significantly (reduce unnecessary renders)
-    if (Math.abs(newSpeed - useGameStore.getState().speed) > 0.1) {
-      set({ speed: newSpeed })
-    }
+    // Always update speed to ensure UI matches physics exactly, and to support microscopic start speeds
+    set({ speed: newSpeed })
   },
   incrementScore: (points) => set((state) => ({ score: state.score + points })),
   setRaceTime: (raceTime) => set((state) => ({ 

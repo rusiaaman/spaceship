@@ -16,6 +16,8 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
   const velocity = useRef(new THREE.Vector3(0, 0, 0)).current
   const lastShootStateRef = useRef(false)
   const lastToggleCameraStateRef = useRef(false)
+  // Maintain local high-precision speed state to allow for microscopic acceleration
+  const currentSpeedRef = useRef(0)
 
   // Only subscribe to state that affects component logic outside of useFrame
   const gameState = useGameStore(state => state.gameState);
@@ -98,10 +100,13 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
     }
     
     // Get frequently updated state and setters inside useFrame
-    const { speed, setRaceTime, setSpeed, setDistanceToFinish, playerState, boostEndTime, deactivateBoost, raceTime, fireProjectile, maxSpeed, playerAmmo, checkPlayerRespawn } = useGameStore.getState();
+    const { setRaceTime, setSpeed, setDistanceToFinish, playerState, boostEndTime, deactivateBoost, raceTime, fireProjectile, maxSpeed, playerAmmo, checkPlayerRespawn } = useGameStore.getState();
     
+    // Use local ref for physics calculations
+    let targetSpeed = currentSpeedRef.current;
+
     // Update engine sound based on speed
-    soundManager.updateEngineSound(speed, maxSpeed, BitFlagUtils.has(playerState, ShipState.BOOSTING))
+    soundManager.updateEngineSound(targetSpeed, maxSpeed, BitFlagUtils.has(playerState, ShipState.BOOSTING))
 
     // Check if boost should end - always check this every frame
     const isBoosting = BitFlagUtils.has(playerState, ShipState.BOOSTING)
@@ -159,30 +164,71 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
         // Get ship size configuration for mass and maneuverability
         const sizeConfig = getPlayerSizeConfig()
         
-        // --- Speed and Acceleration ---
+    // --- Speed and Acceleration ---
         profiler.start('SpaceshipController.speedCalc')
-        let targetSpeed = speed;
-        // Apply mass-based acceleration (larger ships accelerate slower due to higher mass)
-        const acceleration = (GAME_CONSTANTS.ACCELERATION / sizeConfig.mass) * delta;
+        // Local speed variable initialized from Ref above
         
-        // Apply booster speed multiplier if active
-        const speedMultiplier = isBoosting ? GAME_CONSTANTS.BOOSTER_SPEED_MULTIPLIER : 1
-        
+        const absSpeed = Math.abs(targetSpeed);
+        const massFactor = 1.0 / Math.max(0.1, sizeConfig.mass);
+
+        // Determine max speed capacity
+        let currentMaxSpeed = sizeConfig.maxSpeed;
+        const speedMultiplier = isBoosting ? GAME_CONSTANTS.BOOSTER_SPEED_MULTIPLIER : 1.0;
+        currentMaxSpeed *= speedMultiplier;
+
+        // Exponential Acceleration Logic (0 -> 10 -> 100 -> 1000...)
         if (controls.forward) {
-          targetSpeed += acceleration * speedMultiplier;
+          // Logistic Growth: (Base + v*k) * (1 - v/max)
+          const growthRate = GAME_CONSTANTS.LOG_GROWTH_RATE;
+          const baseAccel = GAME_CONSTANTS.LOG_BASE_ACCEL;
+          
+          const headroom = Math.max(0, 1 - (absSpeed / currentMaxSpeed));
+          
+          let instantaneousAccel = (baseAccel + absSpeed * growthRate) * headroom * massFactor;
+          
           if (controls.boost) {
-            targetSpeed += acceleration * GAME_CONSTANTS.BOOST_MULTIPLIER;
+            instantaneousAccel *= GAME_CONSTANTS.BOOST_MULTIPLIER;
           }
+          
+          targetSpeed += instantaneousAccel * delta;
         }
-        if (controls.backward) targetSpeed -= acceleration * 5; // 5x faster backward acceleration
-        if (controls.brake) targetSpeed *= (1 - GAME_CONSTANTS.BRAKE_FORCE * 10 * delta); // Strong braking
+
+        // Exponential Backward/Reverse
+        if (controls.backward) {
+          const growthRate = GAME_CONSTANTS.LOG_GROWTH_RATE;
+          const baseAccel = GAME_CONSTANTS.LOG_BASE_ACCEL;
+          
+          // Only limit reverse acceleration if we are actually moving backward approaching the limit
+          let headroom = 1.0;
+          if (targetSpeed < 0) {
+            const reverseMax = Math.abs(GAME_CONSTANTS.MIN_SPEED);
+            headroom = Math.max(0, 1 - (absSpeed / reverseMax));
+          }
+          
+          const instantaneousAccel = (baseAccel + absSpeed * growthRate) * headroom * massFactor * 0.8;
+          
+          targetSpeed -= instantaneousAccel * delta;
+        }
+
+        // Exponential Braking (Deceleration)
+        if (controls.brake) {
+           const decayRate = GAME_CONSTANTS.BRAKE_FORCE;
+           // Use logical base brake proportional to base accel scale + minimum stop force
+           const baseBrake = (GAME_CONSTANTS.LOG_BASE_ACCEL * 10 + 1e-9) * massFactor;
+           
+           const brakePower = (baseBrake + absSpeed * decayRate) * delta;
+           
+           if (targetSpeed > 0) targetSpeed = Math.max(0, targetSpeed - brakePower);
+           else if (targetSpeed < 0) targetSpeed = Math.min(0, targetSpeed + brakePower);
+        }
         
         // No natural damping - space has no air resistance!
-        // Ship maintains velocity unless you actively brake or reverse
 
-        // Apply speed cap with boost multiplier (allow negative speeds for backward movement)
-        const maxSpeedWithBoost = GAME_CONSTANTS.MAX_SPEED * speedMultiplier;
-        targetSpeed = Math.max(GAME_CONSTANTS.MIN_SPEED, Math.min(maxSpeedWithBoost, targetSpeed));
+        // Clamp speed
+        targetSpeed = Math.max(GAME_CONSTANTS.MIN_SPEED, Math.min(currentMaxSpeed, targetSpeed));
+        
+        // Sync local state
+        currentSpeedRef.current = targetSpeed;
         setSpeed(targetSpeed);
         profiler.end('SpaceshipController.speedCalc')
 

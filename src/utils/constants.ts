@@ -12,7 +12,7 @@ export const SHIP_SIZE_CLASSES = {
     scale: 1.0, 
     maneuverability: 1.5, 
     maxSpeed: 110, 
-    mass: 0.7,        // Lower mass = faster acceleration
+    mass: 0.7,        // Lower mass = higher base acceleration
     maxHealth: 75,    // Lower health
     name: 'Tiny' 
   },
@@ -28,7 +28,7 @@ export const SHIP_SIZE_CLASSES = {
     scale: 2.25, 
     maneuverability: 1.0, 
     maxSpeed: 120, 
-    mass: 1.5,        // Higher mass = slower acceleration
+    mass: 1.5,        // Higher mass = lower base acceleration
     maxHealth: 150,   // More health
     name: 'Medium' 
   },
@@ -44,7 +44,7 @@ export const SHIP_SIZE_CLASSES = {
     scale: 5.0, 
     maneuverability: 0.5, 
     maxSpeed: 130, 
-    mass: 4.0,        // Highest mass = slowest acceleration
+    mass: 4.0,        // Highest mass = lowest base acceleration
     maxHealth: 350,   // Highest health
     name: 'Huge' 
   },
@@ -53,11 +53,17 @@ export const SHIP_SIZE_CLASSES = {
 export type ShipSizeClass = keyof typeof SHIP_SIZE_CLASSES
 
 export const GAME_CONSTANTS = {
-  ACCELERATION: 60,
-  MAX_SPEED: 120,
+  // Exponential Physics
+  LOG_GROWTH_RATE: 2.3, // ln(10) -> 10x growth per second
+  // Base accel calculated to reach ~10 km/h (2.7e-9 gu/s) in 1st second
+  // 10 km/h = 0.00277 km/s. 1 gu/s = 1,256,451 km/s.
+  // So 10 km/h = 2.2e-9 gu/s.
+  LOG_BASE_ACCEL: 2.0e-9,
+  
+  MAX_SPEED: 120, // Reset to original max speed (still FTL at scale)
   MIN_SPEED: -60, // Backward speed limit
   BOOST_MULTIPLIER: 1.8,
-  BRAKE_FORCE: 0.9,
+  BRAKE_FORCE: 2.5, // Exponential braking factor (similar to growth rate)
   ROTATION_SPEED: 0.04,
   STAR_COUNT: 2000, // More stars for vast space
   STAR_SPEED_BASE: 0.5,
@@ -92,7 +98,7 @@ export const GAME_CONSTANTS = {
 
   // Combat Constants
   WEAPON_FIRE_RATE: 0.15, // seconds between shots (faster)
-  PROJECTILE_SPEED: 400, // increased speed
+  PROJECTILE_SPEED: 400, // Reset projectile speed
   PROJECTILE_LIFESPAN: 1.5, // seconds (further reduced for cleanup)
   PROJECTILE_DAMAGE: 25, // health points
   PROJECTILE_RADIUS: 0.3, // visual radius

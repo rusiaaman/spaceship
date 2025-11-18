@@ -585,6 +585,11 @@ export const HUD = () => {
   const speedPercent = (speed / maxSpeed) * 100
   const healthPercent = (playerHealth / playerMaxHealth) * 100
   const shootCooldownProgress = Math.min(1, (raceTime - lastShotTime) / 0.25)
+  
+  const kmPerSec = Math.abs(SOLAR_CONSTANTS.gameSpeedToKmPerSec(speed))
+  const displaySpeed = kmPerSec < 0.1 
+    ? `${Math.round(kmPerSec * 3600).toLocaleString()} km/h` 
+    : `${Math.round(kmPerSec).toLocaleString()} km/s`
 
   // Show damage flash when health decreases
   useEffect(() => {
@@ -698,7 +703,7 @@ export const HUD = () => {
       <TopBar>
         <Stat>
           <Label>Speed</Label>
-          <Value>{Math.round(Math.abs(SOLAR_CONSTANTS.gameSpeedToKmPerSec(speed))).toLocaleString()} km/s</Value>
+          <Value>{displaySpeed}</Value>
         </Stat>
         <Stat>
           <Label>Time</Label>

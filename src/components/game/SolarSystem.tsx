@@ -66,8 +66,8 @@ export const SolarSystem = () => {
       <pointLight
         position={[PLANETARY_POSITIONS.sun.x, PLANETARY_POSITIONS.sun.y, PLANETARY_POSITIONS.sun.z]}
         intensity={2.0}
-        distance={100000}
-        decay={2}
+        distance={20000000000} // 20 billion units to cover Neptune
+        decay={0.5} // Low decay to simulate sunlight reaching far
         color="#FDB813"
       />
       

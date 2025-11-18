@@ -234,9 +234,9 @@ export const PLANETARY_POSITIONS = {
     z: 50000 // Slightly ahead
   },
   moon: { 
-    x: -50000, // Near starting position
+    x: -100000 + (SOLAR_CONSTANTS.EARTH_MOON_DISTANCE_KM / SOLAR_CONSTANTS.KM_PER_GAME_UNIT), // True distance (approx 1.6m units)
     y: 0, 
-    z: 0 // At starting Z
+    z: 50000 
   },
   mars: { 
     angle: Math.PI * 1.2, // 216 degrees
