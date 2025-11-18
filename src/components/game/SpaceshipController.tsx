@@ -6,6 +6,7 @@ import { useGameStore } from '@/store/gameStore'
 import { useMultiplayerStore } from '@/multiplayer/MultiplayerGameStore'
 import { getMultiplayerController } from '@/multiplayer/MultiplayerController'
 import { GAME_CONSTANTS } from '@/utils/constants'
+import { SOLAR_CONSTANTS } from '@/utils/solarSystemData'
 import { profiler } from '@/utils/profiler'
 import { ShipState, BitFlagUtils } from '@/utils/BitFlags'
 import { soundManager } from '@/utils/soundManager'
@@ -173,13 +174,11 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
             targetSpeed += acceleration * GAME_CONSTANTS.BOOST_MULTIPLIER;
           }
         }
-        if (controls.backward) targetSpeed -= acceleration * 5; // 10x faster backward acceleration
-        if (controls.brake) targetSpeed *= (1 - GAME_CONSTANTS.BRAKE_FORCE * 10 * delta); // 10x stronger braking
+        if (controls.backward) targetSpeed -= acceleration * 5; // 5x faster backward acceleration
+        if (controls.brake) targetSpeed *= (1 - GAME_CONSTANTS.BRAKE_FORCE * 10 * delta); // Strong braking
         
-        // Reduced natural damping - only when not accelerating
-        if (!controls.forward) {
-          targetSpeed *= (1 - 0.3 * delta);
-        }
+        // No natural damping - space has no air resistance!
+        // Ship maintains velocity unless you actively brake or reverse
 
         // Apply speed cap with boost multiplier (allow negative speeds for backward movement)
         const maxSpeedWithBoost = GAME_CONSTANTS.MAX_SPEED * speedMultiplier;
@@ -251,7 +250,10 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
         // The previous constraint (worldDirection.y = 0) and normalization are removed
         // to allow for 3D movement based on pitch rotation.
         
-        velocity.copy(worldDirection).multiplyScalar(targetSpeed * delta);
+        // Convert game speed to actual movement speed in game units/second
+        // Speed 100 should move 375 game units/second for a ~4 minute race to Neptune
+        const actualSpeed = SOLAR_CONSTANTS.gameSpeedToUnitsPerSec(targetSpeed);
+        velocity.copy(worldDirection).multiplyScalar(actualSpeed * delta);
         spaceship.position.add(velocity);
         
         // The previous vertical damping (spaceship.position.y = ...) is removed
@@ -275,21 +277,22 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
     // Only update camera during gameplay (not during camera-sweep or countdown)
     if (gameState === 'playing') {
       // Different camera positions based on view mode
+      // Adjusted for new ship scale (0.5x smaller ships)
       const idealOffset = cameraView === 'first-person' 
-        ? new THREE.Vector3(0, 2, 5)      // Close first-person view
-        : new THREE.Vector3(0, 8, 20);    // Wider third-person view
+        ? new THREE.Vector3(0, 0.15, 0.3)      // Very close first-person view
+        : new THREE.Vector3(0, 0.5, 1.5);      // Close third-person view
       
       idealOffset.applyQuaternion(spaceship.quaternion);
       
-      const idealLookat = new THREE.Vector3(0, 0, -10);
+      const idealLookat = new THREE.Vector3(0, 0, -0.5);
       idealLookat.applyQuaternion(spaceship.quaternion);
       idealLookat.add(spaceship.position);
 
       const cameraPosition = new THREE.Vector3();
       cameraPosition.copy(spaceship.position).add(idealOffset);
 
-      // Faster camera follow for more responsive controls
-      state.camera.position.lerp(cameraPosition, 0.2);
+      // Instant camera follow for FTL speeds - no lerp needed at these velocities
+      state.camera.position.copy(cameraPosition);
       state.camera.lookAt(idealLookat);
     }
     

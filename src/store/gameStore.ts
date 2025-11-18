@@ -80,6 +80,10 @@ interface GameStore {
   boostEndTime: number
   playerInvulnerableUntil: number // Time when player invulnerability ends
   playerRespawnTime: number // Time when player respawn delay ends
+  
+  // Checkpoint tracking
+  checkpointsPassed: number
+  totalCheckpoints: number
 
   // Combat state - optimized with typed arrays
   playerHealth: number
@@ -120,11 +124,12 @@ interface GameStore {
   setDistanceToFinish: (distance: number) => void
   setAIStandings: (standings: AIStanding[]) => void
   setPlayerPosition: (position: number) => void
-    activateBoost: (duration: number) => void
-    deactivateBoost: () => void
-    startRace: () => void
+  activateBoost: (duration: number) => void
+  deactivateBoost: () => void
+  startRace: () => void
   finishRace: (time: number) => void
   resetGame: () => void
+  passCheckpoint: (index: number) => void
   
   // Combat actions
   fireProjectile: (origin: THREE.Vector3, direction: THREE.Vector3, isPlayer: boolean) => void
@@ -182,6 +187,10 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
   boostEndTime: 0,
   playerInvulnerableUntil: 0,
   playerRespawnTime: 0,
+  
+  // Checkpoint tracking
+  checkpointsPassed: 0,
+  totalCheckpoints: 5,
 
   // Combat state - optimized with typed arrays
   // Health based on ship size
@@ -313,6 +322,7 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
       boostEndTime: 0,
       playerInvulnerableUntil: 0,
       playerRespawnTime: 0,
+      checkpointsPassed: 0,
       playerHealth: playerConfig.maxHealth,
       playerAmmo: 30,
       aiHealthArray: newAIHealthArray,
@@ -733,6 +743,14 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
   }),
   
   getCombatStats: () => useGameStore.getState().combatStats,
+  
+  passCheckpoint: (index: number) => set((state) => {
+    // Only increment if this is the next checkpoint in sequence
+    if (index === state.checkpointsPassed) {
+      return { checkpointsPassed: state.checkpointsPassed + 1 }
+    }
+    return {}
+  }),
   
   setPlayerSizeClass: (sizeClass: ShipSizeClass) => set(() => {
     const config = SHIP_SIZE_CLASSES[sizeClass]

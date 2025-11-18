@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import styled from '@emotion/styled'
 import { useGameStore } from '@/store/gameStore'
+import { SOLAR_CONSTANTS } from '@/utils/solarSystemData'
 
 import { Confetti } from './Confetti'
 import { Leaderboard } from './Leaderboard'
@@ -565,6 +566,8 @@ export const HUD = () => {
   const cameraView = useGameStore(state => state.cameraView)
   const playerState = useGameStore(state => state.playerState)
   const lastShotTime = useGameStore(state => state.lastShotTime)
+  const checkpointsPassed = useGameStore(state => state.checkpointsPassed)
+  const totalCheckpoints = useGameStore(state => state.totalCheckpoints)
 
   const [showDamageFlash, setShowDamageFlash] = useState(false)
   const [showPointerLockHint, setShowPointerLockHint] = useState(false)
@@ -695,15 +698,19 @@ export const HUD = () => {
       <TopBar>
         <Stat>
           <Label>Speed</Label>
-          <Value>{Math.round(speed)}</Value>
+          <Value>{Math.round(Math.abs(SOLAR_CONSTANTS.gameSpeedToKmPerSec(speed))).toLocaleString()} km/s</Value>
         </Stat>
         <Stat>
           <Label>Time</Label>
           <Value>{formatTime(raceTime)}</Value>
         </Stat>
         <Stat>
-          <Label>Distance</Label>
-          <Value>{Math.round(distanceToFinish)}m</Value>
+          <Label>Checkpoints</Label>
+          <Value>{checkpointsPassed}/{totalCheckpoints}</Value>
+        </Stat>
+        <Stat>
+          <Label>Distance to Neptune</Label>
+          <Value>{Math.round(distanceToFinish).toLocaleString()} units</Value>
         </Stat>
       </TopBar>
 

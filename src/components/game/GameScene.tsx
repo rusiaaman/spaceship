@@ -3,6 +3,8 @@ import { Canvas, useFrame } from '@react-three/fiber'
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
 import * as THREE from 'three'
 import { StarField } from './StarField'
+import { SolarSystem } from './SolarSystem'
+import { TrackCheckpoints } from './TrackCheckpoints'
 import { Cockpit } from './Cockpit'
 import { SpaceshipController } from './SpaceshipController'
 import { SpaceshipModel } from './SpaceshipModel'
@@ -68,7 +70,7 @@ export const GameScene = () => {
     <>
       <SoundController />
       <Canvas
-      camera={{ position: [0, 2, 5], fov: 75, near: 0.1, far: 6000 }}
+      camera={{ position: [0, 0.5, 1.5], fov: 70, near: 0.01, far: 20000000000 }}
       gl={{ 
         antialias: false, // Disable for better performance
         powerPreference: 'high-performance',
@@ -81,9 +83,8 @@ export const GameScene = () => {
       frameloop="always"
       performance={{ min: 0.5 }} // Allow frame rate to drop if needed
     >
-      {/* Lighting - reduced intensity for performance */}
-      <ambientLight intensity={0.3} />
-      <directionalLight position={[10, 10, 5]} intensity={0.4} />
+      {/* Lighting - space environment */}
+      <ambientLight intensity={0.1} />
 
       {/* Camera sweep animation */}
       {gameState === 'camera-sweep' && <CameraSweep />}
@@ -92,6 +93,8 @@ export const GameScene = () => {
       
       {/* Game elements */}
       <StarField />
+      <SolarSystem />
+      <TrackCheckpoints />
       <Cockpit />
       <RaceElements />
       <BoosterManager />

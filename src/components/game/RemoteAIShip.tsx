@@ -53,8 +53,8 @@ export function RemoteAIShip({ aiState }: RemoteAIShipProps) {
   }
 
   return (
-    <group ref={groupRef}>
-      {/* Simple AI ship representation */}
+    <group ref={groupRef} scale={0.5}>
+      {/* Simple AI ship representation - scaled to match player ships */}
       <mesh>
         <coneGeometry args={[1, 3, 8]} />
         <meshStandardMaterial 
@@ -66,15 +66,15 @@ export function RemoteAIShip({ aiState }: RemoteAIShipProps) {
       
       {/* Health bar */}
       {aiState.health < aiState.maxHealth && (
-        <group position={[0, 3, 0]}>
+        <group position={[0, 1.5, 0]}>
           {/* Background */}
           <mesh position={[0, 0, 0.1]}>
-            <planeGeometry args={[2, 0.2]} />
+            <planeGeometry args={[1, 0.1]} />
             <meshBasicMaterial color="#333333" />
           </mesh>
           {/* Health fill */}
-          <mesh position={[-(1 - (aiState.health / aiState.maxHealth)), 0, 0.2]}>
-            <planeGeometry args={[(aiState.health / aiState.maxHealth) * 2, 0.2]} />
+          <mesh position={[-(0.5 - (aiState.health / aiState.maxHealth) * 0.5), 0, 0.2]}>
+            <planeGeometry args={[(aiState.health / aiState.maxHealth), 0.1]} />
             <meshBasicMaterial color="#ff0000" />
           </mesh>
         </group>

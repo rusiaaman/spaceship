@@ -1,5 +1,12 @@
 // Ship size classes with log-scale variation
 // Larger ships have more mass (lower acceleration), more health, but higher top speed
+// Ship sizes in real-world terms (at scale multiplier 0.5 in SpaceshipModel.tsx):
+// - TINY: 0.5 gu = 135m (small fighter)
+// - SMALL: 0.75 gu = 203m (corvette)
+// - MEDIUM: 1.125 gu = 270m (Titanic-sized, baseline)
+// - LARGE: 1.7 gu = 459m (frigate)
+// - HUGE: 2.5 gu = 675m (destroyer)
+// Note: Ships are now tiny specks compared to planets (Earth is 495 gu = 99x larger than MEDIUM ship)
 export const SHIP_SIZE_CLASSES = {
   TINY: { 
     scale: 1.0, 
@@ -52,32 +59,34 @@ export const GAME_CONSTANTS = {
   BOOST_MULTIPLIER: 1.8,
   BRAKE_FORCE: 0.9,
   ROTATION_SPEED: 0.04,
-  STAR_COUNT: 1500, // Reduced for better performance
+  STAR_COUNT: 2000, // More stars for vast space
   STAR_SPEED_BASE: 0.5,
-  STAR_SPREAD: 500,
+  STAR_SPREAD: 9371683294, // TRUE scale - spans half the solar system!
   
-  // Racing Constants
-  RACE_DISTANCE: 5000, // Z-coordinate distance to the finish disk
-  FINISH_DISK_RADIUS: 50,
+  // Racing Constants - TRUE ASTRONOMICAL SCALE
+  // Distance from Moon orbit to Neptune orbit (18.7 BILLION game units!)
+  // At speed 100 (52.35 million gu/s = 41.9c), this takes ~6 minutes to complete
+  RACE_DISTANCE: 18743366587, // Z-coordinate distance to the finish disk (Neptune) - TRUE distance!
+  FINISH_DISK_RADIUS: 150000, // 36,000 km - visible from distance
   AI_SPEED_MULTIPLIER: 0.85,
   AI_COUNT: 15,
 
-  // AI behavior tuning
+  // AI behavior tuning - TRUE scale
   AI_SPEED_VARIANCE: 0.2,
-  AI_LATERAL_SWAY_AMPLITUDE: 4,
+  AI_LATERAL_SWAY_AMPLITUDE: 10000, // 2,400 km sway
   AI_LATERAL_SWAY_FREQUENCY: 0.5,
-  AI_INITIAL_Z_MIN: -60,
-  AI_INITIAL_Z_MAX: -20,
+  AI_INITIAL_Z_MIN: -100000, // Much further ahead
+  AI_INITIAL_Z_MAX: -50000,
   
   // Ship size configuration
   DEFAULT_PLAYER_SIZE: 'MEDIUM' as ShipSizeClass,
   DEFAULT_AI_SIZE: 'MEDIUM' as ShipSizeClass,
 
-  // Speed Booster Constants
-  BOOSTER_COUNT: 6,
-  BOOSTER_SPACING: 150, // Distance between boosters
-  BOOSTER_RADIUS: 15, // Collision radius
-  BOOSTER_RING_RADIUS: 20, // Visual ring size
+  // Speed Booster Constants - TRUE scale (MASSIVE for visibility at FTL speeds)
+  BOOSTER_COUNT: 10, // Boosters along the track
+  BOOSTER_SPACING: 1874336659, // ~1.87 billion gu between boosters
+  BOOSTER_RADIUS: 50000000, // 12 million km collision radius (HUGE!)
+  BOOSTER_RING_RADIUS: 100000000, // 24 million km visual ring size (MASSIVE!)
   BOOSTER_DURATION: 3, // Boost duration in seconds
   BOOSTER_SPEED_MULTIPLIER: 2.0, // Speed multiplier when boosted
 

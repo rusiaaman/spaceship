@@ -19,8 +19,8 @@ const BoosterManagerComponent = () => {
       // Distribute evenly from start to finish
       const zPosition = -(i + 1) * spacing
       
-      // Alternate between left, center, and right positions
-      const xPositions = [-25, 0, 25]
+      // Alternate between left, center, and right positions - MASSIVE scale
+      const xPositions = [-200000000, 0, 200000000] // 48 million km spread
       const xPosition = xPositions[i % 3]
       
       positions.push({

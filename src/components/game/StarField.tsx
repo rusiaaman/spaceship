@@ -9,20 +9,20 @@ export const StarField = () => {
   const positions = useMemo(() => {
     const positions = new Float32Array(GAME_CONSTANTS.STAR_COUNT * 3)
 
-    // Extend the field to cover the entire race track and beyond
-    const raceLength = GAME_CONSTANTS.RACE_DISTANCE + 500 // Extra buffer beyond finish
+    // Extend the field to cover the entire solar system - TRUE scale
+    const raceLength = GAME_CONSTANTS.RACE_DISTANCE + 1000000000 // 1 billion gu buffer
 
     for (let i = 0; i < GAME_CONSTANTS.STAR_COUNT; i++) {
       const i3 = i * 3
 
-      // Create stars in a cylindrical volume along the entire race track
+      // Create stars in a vast spherical volume around the entire solar system
       const angle = Math.random() * Math.PI * 2
       const radius = Math.random() * GAME_CONSTANTS.STAR_SPREAD
       const depth = Math.random() * raceLength // Extend to full race length
 
       positions[i3] = Math.cos(angle) * radius
       positions[i3 + 1] = Math.sin(angle) * radius
-      positions[i3 + 2] = -depth - 50 // Start from -50 and extend backward
+      positions[i3 + 2] = -depth - 1000000 // Start from -1 million gu
     }
 
     return positions
@@ -40,7 +40,7 @@ export const StarField = () => {
         />
       </bufferGeometry>
       <pointsMaterial
-        size={2.5}
+        size={100}
         color="#ffffff"
         sizeAttenuation={true}
         transparent={false}

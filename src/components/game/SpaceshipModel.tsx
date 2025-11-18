@@ -108,9 +108,10 @@ export const SpaceshipModel = ({ spaceshipRef }: SpaceshipModelProps) => {
   return (
     <group ref={modelRef}>
       {/* Actual spaceship model with size-based scale and correct orientation */}
+      {/* Scale: 0.5 makes MEDIUM ship ~1.125 gu ≈ 270m (Titanic-sized) */}
       <primitive 
         object={clonedScene} 
-        scale={10 * sizeConfig.scale}
+        scale={0.5 * sizeConfig.scale}
         rotation={[0, -Math.PI / 2, 0]}
       />
       

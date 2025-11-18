@@ -8,6 +8,7 @@ import { useGameStore } from '@/store/gameStore';
 import { profiler } from '@/utils/profiler';
 import { ShipState, BitFlagUtils } from '@/utils/BitFlags';
 import { PredictiveTargeting } from '@/utils/AIBehaviors';
+import { SOLAR_CONSTANTS } from '@/utils/solarSystemData';
 
 interface AIShipProps {
   position: [number, number, number];
@@ -22,8 +23,8 @@ const aiWingGeometry = new THREE.BoxGeometry(6, 0.3, 2)
 
 const AISpaceship = forwardRef<THREE.Group, AIShipProps>(({ position, rotationY, color, sizeScale }, ref) => {
   return (
-    <group position={position} rotation-y={rotationY} ref={ref} scale={1.5 * sizeScale}>
-      {/* Main body - using shared geometry, scaled by ship size */}
+    <group position={position} rotation-y={rotationY} ref={ref} scale={0.5 * sizeScale}>
+      {/* Main body - using shared geometry, scaled by ship size (matches player ship scale) */}
       <mesh geometry={aiBodyGeometry} position={[0, 0, 0]}>
         <meshStandardMaterial 
           color={color} 
@@ -57,29 +58,29 @@ const FinishDisk = () => {
 
   return (
     <group position={position}>
-      {/* Outer Ring - reduced segments for performance */}
-      <Torus args={[FINISH_DISK_RADIUS, 1, 8, 32]}>
+      {/* Outer Ring - TRUE scale (36,000 km diameter, 240 km thick) */}
+      <Torus args={[FINISH_DISK_RADIUS, 1000, 16, 64]}>
         <meshBasicMaterial color="#00ff00" />
       </Torus>
-      {/* Inner transparent disk - reduced segments */}
-      <Cylinder args={[FINISH_DISK_RADIUS, FINISH_DISK_RADIUS, 0.1, 32, 1, true]} rotation-x={Math.PI / 2}>
+      {/* Inner transparent disk */}
+      <Cylinder args={[FINISH_DISK_RADIUS, FINISH_DISK_RADIUS, 100, 64, 1, true]} rotation-x={Math.PI / 2}>
         <meshStandardMaterial color="#00ff00" transparent opacity={0.1} side={THREE.DoubleSide} />
       </Cylinder>
-      {/* Single glowing ring - reduced segments */}
-      <Torus args={[FINISH_DISK_RADIUS * 0.8, 0.5, 8, 32]}>
+      {/* Glowing inner ring */}
+      <Torus args={[FINISH_DISK_RADIUS * 0.8, 800, 16, 64]}>
         <meshBasicMaterial color="#00ff00" transparent opacity={0.5} />
       </Torus>
       
-      {/* 3D Text Label - Always visible, glowing, positioned for optimal camera view */}
-      <Center position={[0, 55, 0]} rotation-y={Math.PI}>
+      {/* 3D Text Label - MASSIVE scale (1,200 km tall text!) */}
+      <Center position={[0, 200000, 0]} rotation-y={Math.PI}>
         <Text3D
           font="/fonts/Orbitron_Bold.json"
-          size={18}
-          height={3}
+          size={5000}
+          height={1000}
           curveSegments={12}
           bevelEnabled
-          bevelThickness={0.8}
-          bevelSize={0.5}
+          bevelThickness={200}
+          bevelSize={150}
           bevelOffset={0}
           bevelSegments={5}
         >
@@ -91,8 +92,8 @@ const FinishDisk = () => {
         </Text3D>
       </Center>
       
-      {/* Additional glow ring for better visibility from distance */}
-      <Torus args={[FINISH_DISK_RADIUS * 1.1, 0.8, 8, 32]} position={[0, 0, 0]}>
+      {/* Additional glow ring for visibility from vast distances */}
+      <Torus args={[FINISH_DISK_RADIUS * 1.1, 1200, 16, 64]} position={[0, 0, 0]}>
         <meshBasicMaterial color="#00ff00" transparent opacity={0.3} />
       </Torus>
     </group>
@@ -411,16 +412,19 @@ const AIManager = () => {
       if (gameState === 'playing' && isRaceStarted && !st.finished) {
         // Apply speed reduction from damage
         const speedReduction = getAISpeedReduction(st.id)
-        const effectiveSpeed = st.speed * (1 - speedReduction)
+        const effectiveGameSpeed = st.speed * (1 - speedReduction)
+        
+        // Convert game speed to actual movement speed (same as player)
+        const effectiveSpeed = SOLAR_CONSTANTS.gameSpeedToUnitsPerSec(effectiveGameSpeed)
         
         // Move forward toward finish (negative Z direction)
         st.z -= effectiveSpeed * delta
       }
 
-      // Recompute finalX after separation/damping
+      // Recompute finalX after separation/damping - TRUE scale
       const sway = Math.sin(t * AI_LATERAL_SWAY_FREQUENCY + st.phase) * AI_LATERAL_SWAY_AMPLITUDE
       let finalX = st.baseX + sway + st.xOffset
-      finalX = THREE.MathUtils.clamp(finalX, -30, 30)
+      finalX = THREE.MathUtils.clamp(finalX, -100000, 100000) // 24,000 km track width
       
       // Check booster collision for AI ships (after finalX is calculated)
       if (gameState === 'playing' && isRaceStarted && !st.finished) {

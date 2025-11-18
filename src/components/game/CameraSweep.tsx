@@ -25,20 +25,21 @@ export const CameraSweep = () => {
   // Define camera path keyframes with pause at finish line
   // AI ships are positioned at z = -20 to -60 (ahead of player at z=0)
   // Camera starts behind the grid to show all ships
+  // Adjusted for TRUE astronomical scale
   // Using LINEAR time values (no easing applied to keyframe times)
   const keyframes = [
-    { time: 0.0, position: new THREE.Vector3(0, 8, 25), lookAt: new THREE.Vector3(0, 0, -40) }, // Start behind, elevated view of entire starting grid
-    { time: 0.12, position: new THREE.Vector3(0, 12, 15), lookAt: new THREE.Vector3(0, 0, -40) }, // Move closer, still showing all ships
-    { time: 0.20, position: new THREE.Vector3(0, 20, -10), lookAt: new THREE.Vector3(0, 0, -50) }, // Move through the grid, looking ahead
+    { time: 0.0, position: new THREE.Vector3(0, 2, 8), lookAt: new THREE.Vector3(0, 0, -40) }, // Start behind, elevated view of entire starting grid
+    { time: 0.12, position: new THREE.Vector3(0, 3, 5), lookAt: new THREE.Vector3(0, 0, -40) }, // Move closer, still showing all ships
+    { time: 0.20, position: new THREE.Vector3(0, 5, -10), lookAt: new THREE.Vector3(0, 0, -50) }, // Move through the grid, looking ahead
     { time: 0.28, position: new THREE.Vector3(0, 40, -150), lookAt: new THREE.Vector3(0, 0, -400) }, // Pull back to see the race track
-    { time: 0.40, position: new THREE.Vector3(0, 80, -1000), lookAt: new THREE.Vector3(0, 0, -2000) }, // Mid journey
-    { time: 0.52, position: new THREE.Vector3(0, 100, -2500), lookAt: new THREE.Vector3(0, 0, -3500) }, // Continue to finish
-    { time: 0.62, position: new THREE.Vector3(0, 80, -5300), lookAt: new THREE.Vector3(0, 0, -GAME_CONSTANTS.RACE_DISTANCE) }, // Approach finish from behind
-    { time: 0.68, position: new THREE.Vector3(0, 70, -5350), lookAt: new THREE.Vector3(0, 0, -GAME_CONSTANTS.RACE_DISTANCE) }, // Move into pause position (elevated for better view)
-    { time: 0.88, position: new THREE.Vector3(0, 70, -5350), lookAt: new THREE.Vector3(0, 0, -GAME_CONSTANTS.RACE_DISTANCE) }, // PAUSE at finish - hold for 20% of animation (1.1 seconds)
-    { time: 0.94, position: new THREE.Vector3(0, 40, -2500), lookAt: new THREE.Vector3(0, 0, -GAME_CONSTANTS.RACE_DISTANCE) }, // Start return - keep looking at finish
-    { time: 0.97, position: new THREE.Vector3(0, 10, 100), lookAt: new THREE.Vector3(0, 0, -GAME_CONSTANTS.RACE_DISTANCE) }, // Continue return - still looking at finish
-    { time: 1.0, position: new THREE.Vector3(0, 2, 5), lookAt: new THREE.Vector3(0, 0, -GAME_CONSTANTS.RACE_DISTANCE) }, // Final position - STILL looking at finish line
+    { time: 0.40, position: new THREE.Vector3(0, 1000, -10000), lookAt: new THREE.Vector3(0, 0, -100000) }, // Mid journey - scaled up
+    { time: 0.52, position: new THREE.Vector3(0, 10000, -1000000), lookAt: new THREE.Vector3(0, 0, -5000000) }, // Continue to finish - scaled up
+    { time: 0.62, position: new THREE.Vector3(0, 100000, -GAME_CONSTANTS.RACE_DISTANCE + 1000000), lookAt: new THREE.Vector3(0, 0, -GAME_CONSTANTS.RACE_DISTANCE) }, // Approach finish from behind
+    { time: 0.68, position: new THREE.Vector3(0, 100000, -GAME_CONSTANTS.RACE_DISTANCE + 500000), lookAt: new THREE.Vector3(0, 0, -GAME_CONSTANTS.RACE_DISTANCE) }, // Move into pause position
+    { time: 0.88, position: new THREE.Vector3(0, 100000, -GAME_CONSTANTS.RACE_DISTANCE + 500000), lookAt: new THREE.Vector3(0, 0, -GAME_CONSTANTS.RACE_DISTANCE) }, // PAUSE at finish
+    { time: 0.94, position: new THREE.Vector3(0, 10000, -1000000), lookAt: new THREE.Vector3(0, 0, -GAME_CONSTANTS.RACE_DISTANCE) }, // Start return
+    { time: 0.97, position: new THREE.Vector3(0, 100, 1000), lookAt: new THREE.Vector3(0, 0, -GAME_CONSTANTS.RACE_DISTANCE) }, // Continue return
+    { time: 1.0, position: new THREE.Vector3(0, 0.5, 1.5), lookAt: new THREE.Vector3(0, 0, -GAME_CONSTANTS.RACE_DISTANCE) }, // Final position
   ]
   
   // Store original camera settings
@@ -55,8 +56,8 @@ export const CameraSweep = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && gameState === 'camera-sweep') {
-        // Reset camera to original position
-        camera.position.set(0, 2, 5)
+        // Reset camera to original position (adjusted for new ship scale)
+        camera.position.set(0, 0.5, 1.5)
         camera.lookAt(0, 0, -50)
         setShowFinishLabel(false)
         setGameState('countdown')
@@ -147,8 +148,8 @@ export const CameraSweep = () => {
     
     // Check if sweep is complete
     if (progress >= 1) {
-      // Ensure camera is at final position, looking at finish line
-      camera.position.set(0, 2, 5)
+      // Ensure camera is at final position, looking at finish line (adjusted for new ship scale)
+      camera.position.set(0, 0.5, 1.5)
       camera.lookAt(0, 0, -GAME_CONSTANTS.RACE_DISTANCE)
       setShowFinishLabel(false)
       
