@@ -173,17 +173,17 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
             targetSpeed += acceleration * GAME_CONSTANTS.BOOST_MULTIPLIER;
           }
         }
-        if (controls.backward) targetSpeed -= acceleration * 0.5;
-        if (controls.brake) targetSpeed *= (1 - GAME_CONSTANTS.BRAKE_FORCE * delta);
+        if (controls.backward) targetSpeed -= acceleration * 5; // 10x faster backward acceleration
+        if (controls.brake) targetSpeed *= (1 - GAME_CONSTANTS.BRAKE_FORCE * 10 * delta); // 10x stronger braking
         
         // Reduced natural damping - only when not accelerating
         if (!controls.forward) {
           targetSpeed *= (1 - 0.3 * delta);
         }
 
-        // Apply speed cap with boost multiplier
+        // Apply speed cap with boost multiplier (allow negative speeds for backward movement)
         const maxSpeedWithBoost = GAME_CONSTANTS.MAX_SPEED * speedMultiplier;
-        targetSpeed = Math.max(0, Math.min(maxSpeedWithBoost, targetSpeed));
+        targetSpeed = Math.max(GAME_CONSTANTS.MIN_SPEED, Math.min(maxSpeedWithBoost, targetSpeed));
         setSpeed(targetSpeed);
         profiler.end('SpaceshipController.speedCalc')
 

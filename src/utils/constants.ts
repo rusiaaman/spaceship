@@ -48,6 +48,7 @@ export type ShipSizeClass = keyof typeof SHIP_SIZE_CLASSES
 export const GAME_CONSTANTS = {
   ACCELERATION: 60,
   MAX_SPEED: 120,
+  MIN_SPEED: -60, // Backward speed limit
   BOOST_MULTIPLIER: 1.8,
   BRAKE_FORCE: 0.9,
   ROTATION_SPEED: 0.04,
