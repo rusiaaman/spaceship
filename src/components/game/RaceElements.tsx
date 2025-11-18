@@ -32,6 +32,7 @@ const AISpaceship = forwardRef<THREE.Group, AIShipProps>(({ position, rotationY,
           emissiveIntensity={0.3}
           metalness={0.6}
           roughness={0.4}
+          toneMapped={false}
         />
       </mesh>
       {/* Wings - using shared geometry */}
@@ -42,6 +43,7 @@ const AISpaceship = forwardRef<THREE.Group, AIShipProps>(({ position, rotationY,
           emissiveIntensity={0.15}
           metalness={0.4}
           roughness={0.5}
+          toneMapped={false}
         />
       </mesh>
     </group>
@@ -51,36 +53,94 @@ AISpaceship.displayName = 'AISpaceship'
 
 // Finish Disk component - Vertical disk facing the starting position
 const FinishDisk = () => {
-  const { FINISH_DISK_RADIUS, RACE_DISTANCE } = GAME_CONSTANTS;
+  const { RACE_DISTANCE } = GAME_CONSTANTS;
   
   // Position the disk far away on the negative Z axis
   const position: [number, number, number] = [0, 0, -RACE_DISTANCE];
 
+  // MASSIVE scale to match booster visibility (100M km radius base)
+  const VISUAL_RADIUS = 100000000; // 100 million km - matches booster scale and collision
+  const RING_THICKNESS = 10000000; // 10 million km
+
   return (
     <group position={position}>
-      {/* Outer Ring - TRUE scale (36,000 km diameter, 240 km thick) */}
-      <Torus args={[FINISH_DISK_RADIUS, 1000, 16, 64]}>
-        <meshBasicMaterial color="#00ff00" />
-      </Torus>
-      {/* Inner transparent disk */}
-      <Cylinder args={[FINISH_DISK_RADIUS, FINISH_DISK_RADIUS, 100, 64, 1, true]} rotation-x={Math.PI / 2}>
-        <meshStandardMaterial color="#00ff00" transparent opacity={0.1} side={THREE.DoubleSide} />
-      </Cylinder>
-      {/* Glowing inner ring */}
-      <Torus args={[FINISH_DISK_RADIUS * 0.8, 800, 16, 64]}>
-        <meshBasicMaterial color="#00ff00" transparent opacity={0.5} />
+      {/* Main outer ring - MASSIVE scale matching boosters */}
+      <Torus args={[VISUAL_RADIUS, RING_THICKNESS, 16, 64]}>
+        <meshStandardMaterial 
+          color="#00ff00" 
+          emissive="#00ff00"
+          emissiveIntensity={2.0}
+          toneMapped={false}
+        />
       </Torus>
       
-      {/* 3D Text Label - MASSIVE scale (1,200 km tall text!) */}
-      <Center position={[0, 200000, 0]} rotation-y={Math.PI}>
+      {/* Inner ring for depth */}
+      <Torus args={[VISUAL_RADIUS * 0.75, RING_THICKNESS * 0.8, 16, 64]}>
+        <meshStandardMaterial 
+          color="#00ff00" 
+          emissive="#00ff00"
+          emissiveIntensity={1.5}
+          transparent 
+          opacity={0.7}
+          toneMapped={false}
+        />
+      </Torus>
+      
+      {/* Outer glow ring for extreme distance visibility */}
+      <Torus args={[VISUAL_RADIUS * 1.2, RING_THICKNESS * 1.2, 16, 64]}>
+        <meshStandardMaterial 
+          color="#00ff00" 
+          emissive="#00ff00"
+          emissiveIntensity={1.2}
+          transparent 
+          opacity={0.5}
+          toneMapped={false}
+        />
+      </Torus>
+      
+      {/* Additional ultra-wide glow ring */}
+      <Torus args={[VISUAL_RADIUS * 1.5, RING_THICKNESS * 1.5, 16, 64]}>
+        <meshStandardMaterial 
+          color="#00ff00" 
+          emissive="#00ff00"
+          emissiveIntensity={1.0}
+          transparent 
+          opacity={0.3}
+          toneMapped={false}
+        />
+      </Torus>
+      
+      {/* Inner transparent disk - using VISUAL_RADIUS to match collision detection */}
+      <Cylinder args={[VISUAL_RADIUS * 0.9, VISUAL_RADIUS * 0.9, 100, 64, 1, true]} rotation-x={Math.PI / 2}>
+        <meshStandardMaterial 
+          color="#00ff00" 
+          emissive="#00ff00"
+          emissiveIntensity={0.5}
+          transparent 
+          opacity={0.05} 
+          side={THREE.DoubleSide}
+          toneMapped={false}
+        />
+      </Cylinder>
+      
+      {/* Point light for massive glow - matches booster light setup */}
+      <pointLight 
+        position={[0, 0, 0]} 
+        color="#00ff00" 
+        intensity={1000} 
+        distance={200000000} 
+      />
+      
+      {/* 3D Text Label - MASSIVE scale */}
+      <Center position={[0, VISUAL_RADIUS * 1.3, 0]} rotation-y={Math.PI}>
         <Text3D
           font="/fonts/Orbitron_Bold.json"
-          size={5000}
-          height={1000}
+          size={VISUAL_RADIUS * 0.08}
+          height={VISUAL_RADIUS * 0.015}
           curveSegments={12}
           bevelEnabled
-          bevelThickness={200}
-          bevelSize={150}
+          bevelThickness={VISUAL_RADIUS * 0.003}
+          bevelSize={VISUAL_RADIUS * 0.002}
           bevelOffset={0}
           bevelSegments={5}
         >
@@ -91,11 +151,6 @@ const FinishDisk = () => {
           />
         </Text3D>
       </Center>
-      
-      {/* Additional glow ring for visibility from vast distances */}
-      <Torus args={[FINISH_DISK_RADIUS * 1.1, 1200, 16, 64]} position={[0, 0, 0]}>
-        <meshBasicMaterial color="#00ff00" transparent opacity={0.3} />
-      </Torus>
     </group>
   );
 };

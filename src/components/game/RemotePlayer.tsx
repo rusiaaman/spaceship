@@ -57,6 +57,7 @@ export function RemotePlayer({ player }: RemotePlayerProps) {
           color="#00aaff" 
           emissive="#00aaff"
           emissiveIntensity={0.5}
+          toneMapped={false}
         />
       </mesh>
       

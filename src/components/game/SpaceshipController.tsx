@@ -49,8 +49,8 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
     const { activateBoost, spatialIndices, refillAmmo } = useGameStore.getState() // Added refillAmmo
 
     // Use spatial index for O(log n) booster proximity check
-    // Use a wider radius for the initial query to ensure we don't miss boosters
-    const nearbyBoosters = spatialIndices.boosters.queryRadius(position, BOOSTER_RING_RADIUS * 1.5)
+    // Use a wider radius for the initial query to ensure we don't miss boosters at high speeds
+    const nearbyBoosters = spatialIndices.boosters.queryRadius(position, BOOSTER_RING_RADIUS * 2)
 
     for (const booster of nearbyBoosters) {
       const boosterId = booster.id as number
@@ -59,8 +59,8 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
 
       const distance = position.distanceTo(booster.position)
 
-      // Use a slightly relaxed threshold to avoid misses at speed
-      if (distance < BOOSTER_RADIUS + 3) {
+      // Collision detection with solar-scale radius
+      if (distance < BOOSTER_RADIUS) {
         console.log('🚀 Booster re-used!', boosterId, 'at time:', currentTime)
         soundManager.playSound('boost-collect')
         collectionCooldownRef.current = currentTime

@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
+import { LensFlareEffect } from './LensFlareEffect'
 import * as THREE from 'three'
 import { StarField } from './StarField'
 import { SolarSystem } from './SolarSystem'
@@ -115,18 +116,22 @@ export const GameScene = () => {
       <SpaceshipController ref={spaceshipRef} />
       <SpaceshipModel spaceshipRef={spaceshipRef} />
 
-      {/* Post-processing effects - heavily optimized for performance */}
+      {/* Post-processing effects - enhanced with glare */}
       <EffectComposer multisampling={0}>
         <Bloom
-          intensity={0.8}
-          luminanceThreshold={0.4}
+          intensity={1.2}
+          luminanceThreshold={0.3}
           luminanceSmoothing={0.9}
+          radius={0.8}
           mipmapBlur
           levels={5}
           width={512}
           height={512}
         />
       </EffectComposer>
+      
+      {/* Lens flare effects for realistic glare */}
+      <LensFlareEffect />
     </Canvas>
     </>
   )

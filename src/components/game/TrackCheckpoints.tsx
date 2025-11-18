@@ -50,8 +50,10 @@ export const TrackCheckpoints = () => {
           <group key={index} position={[checkpoint.position.x, checkpoint.position.y, checkpoint.position.z]}>
             {/* Outer checkpoint ring */}
             <Torus args={[checkpoint.radius, 2, 8, 32]}>
-              <meshBasicMaterial 
+              <meshStandardMaterial 
                 color={isPassed ? '#00ff00' : isNext ? '#ffff00' : index % 2 === 0 ? '#00aaff' : '#ffaa00'} 
+                emissive={isPassed ? '#00ff00' : isNext ? '#ffff00' : index % 2 === 0 ? '#00aaff' : '#ffaa00'}
+                emissiveIntensity={isPassed ? 0.5 : isNext ? 1.5 : 0.8}
                 transparent 
                 opacity={isPassed ? 0.3 : isNext ? 0.9 : 0.6}
                 toneMapped={false}
@@ -60,8 +62,10 @@ export const TrackCheckpoints = () => {
             
             {/* Inner glow ring */}
             <Torus args={[checkpoint.radius * 0.85, 1, 8, 32]}>
-              <meshBasicMaterial 
+              <meshStandardMaterial 
                 color={isPassed ? '#00ff00' : isNext ? '#ffff00' : index % 2 === 0 ? '#00aaff' : '#ffaa00'} 
+                emissive={isPassed ? '#00ff00' : isNext ? '#ffff00' : index % 2 === 0 ? '#00aaff' : '#ffaa00'}
+                emissiveIntensity={isPassed ? 0.3 : isNext ? 1.2 : 0.6}
                 transparent 
                 opacity={isPassed ? 0.2 : isNext ? 0.6 : 0.4}
                 toneMapped={false}
@@ -71,8 +75,10 @@ export const TrackCheckpoints = () => {
             {/* Pulsing center ring for next checkpoint */}
             {isNext && (
               <Torus args={[checkpoint.radius * 0.5, 0.5, 8, 32]}>
-                <meshBasicMaterial 
+                <meshStandardMaterial 
                   color="#ffffff" 
+                  emissive="#ffffff"
+                  emissiveIntensity={2.0}
                   transparent 
                   opacity={0.8}
                   toneMapped={false}

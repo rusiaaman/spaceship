@@ -67,7 +67,7 @@ export const GAME_CONSTANTS = {
   // Distance from Moon orbit to Neptune orbit (18.7 BILLION game units!)
   // At speed 100 (52.35 million gu/s = 41.9c), this takes ~6 minutes to complete
   RACE_DISTANCE: 18743366587, // Z-coordinate distance to the finish disk (Neptune) - TRUE distance!
-  FINISH_DISK_RADIUS: 150000, // 36,000 km - visible from distance
+  FINISH_DISK_RADIUS: 100000000, // 24M km collision radius - matches visual scale for detection
   AI_SPEED_MULTIPLIER: 0.85,
   AI_COUNT: 15,
 
@@ -85,7 +85,7 @@ export const GAME_CONSTANTS = {
   // Speed Booster Constants - TRUE scale (MASSIVE for visibility at FTL speeds)
   BOOSTER_COUNT: 10, // Boosters along the track
   BOOSTER_SPACING: 1874336659, // ~1.87 billion gu between boosters
-  BOOSTER_RADIUS: 50000000, // 12 million km collision radius (HUGE!)
+  BOOSTER_RADIUS: 100000000, // 24 million km collision radius - matches visual ring
   BOOSTER_RING_RADIUS: 100000000, // 24 million km visual ring size (MASSIVE!)
   BOOSTER_DURATION: 3, // Boost duration in seconds
   BOOSTER_SPEED_MULTIPLIER: 2.0, // Speed multiplier when boosted

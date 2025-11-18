@@ -196,13 +196,16 @@ const LaserBeam = ({ projectile }: LaserBeamProps) => {
 
   return (
     <group ref={groupRef}>
-      {/* Single optimized beam - removed glow layer and point light for performance */}
+      {/* Single optimized beam with emissive glow */}
       <mesh geometry={sharedBeamGeometry}>
-        <meshBasicMaterial
+        <meshStandardMaterial
           color={projectile.color}
+          emissive={projectile.color}
+          emissiveIntensity={2.0}
           transparent
           opacity={0.95}
           blending={THREE.AdditiveBlending}
+          toneMapped={false}
         />
       </mesh>
     </group>

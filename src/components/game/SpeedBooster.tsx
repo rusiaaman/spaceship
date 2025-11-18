@@ -30,17 +30,21 @@ const SpeedBoosterComponent = ({ id: _id, position }: SpeedBoosterProps) => {
     <group position={position} ref={groupRef}>
       {/* Main ring - MASSIVE scale (24 million km diameter!) */}
       <Torus args={[100000000, 10000000, 8, 32]}>
-        <meshBasicMaterial 
+        <meshStandardMaterial 
           ref={materialRef}
           color="#00ffff"
+          emissive="#00ffff"
+          emissiveIntensity={1.5}
           toneMapped={false}
         />
       </Torus>
       
       {/* Inner ring - MASSIVE scale with high emissive */}
       <Torus args={[75000000, 8000000, 8, 32]}>
-        <meshBasicMaterial 
+        <meshStandardMaterial 
           color="#00aaff"
+          emissive="#00aaff"
+          emissiveIntensity={1.2}
           transparent
           opacity={0.7}
           toneMapped={false}
@@ -49,8 +53,10 @@ const SpeedBoosterComponent = ({ id: _id, position }: SpeedBoosterProps) => {
       
       {/* Outer glow ring for visibility from extreme distances */}
       <Torus args={[120000000, 12000000, 8, 32]}>
-        <meshBasicMaterial 
+        <meshStandardMaterial 
           color="#00ffff"
+          emissive="#00ffff"
+          emissiveIntensity={1.0}
           transparent
           opacity={0.4}
           toneMapped={false}

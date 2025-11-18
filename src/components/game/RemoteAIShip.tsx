@@ -61,6 +61,7 @@ export function RemoteAIShip({ aiState }: RemoteAIShipProps) {
           color="#ff4444" 
           emissive="#ff4444"
           emissiveIntensity={aiState.isInvulnerable ? 1.0 : 0.3}
+          toneMapped={false}
         />
       </mesh>
       

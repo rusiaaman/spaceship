@@ -16,7 +16,8 @@ export const Cockpit = () => {
     emissive: '#00bfff',
     emissiveIntensity: 0.5,
     metalness: 0.8,
-    roughness: 0.2
+    roughness: 0.2,
+    toneMapped: false
   }), [])
   
   const hudRingMaterial = useMemo(() => new THREE.MeshStandardMaterial({
@@ -24,7 +25,8 @@ export const Cockpit = () => {
     emissive: '#00ffff',
     emissiveIntensity: 1.5,
     metalness: 0.9,
-    roughness: 0.1
+    roughness: 0.1,
+    toneMapped: false
   }), [])
   
   const crosshairMaterial = useMemo(() => new THREE.MeshStandardMaterial({
@@ -32,19 +34,22 @@ export const Cockpit = () => {
     emissive: '#00ffff',
     emissiveIntensity: 1.5,
     transparent: true,
-    opacity: 0.6
+    opacity: 0.6,
+    toneMapped: false
   }), [])
   
   const dotMaterial = useMemo(() => new THREE.MeshStandardMaterial({
     color: '#00ffff',
     emissive: '#00ffff',
-    emissiveIntensity: 2
+    emissiveIntensity: 2,
+    toneMapped: false
   }), [])
   
   const panelMaterial = useMemo(() => new THREE.MeshStandardMaterial({
     color: '#00bfff',
     emissive: '#00bfff',
-    emissiveIntensity: 1.2
+    emissiveIntensity: 1.2,
+    toneMapped: false
   }), [])
 
   useFrame((state) => {

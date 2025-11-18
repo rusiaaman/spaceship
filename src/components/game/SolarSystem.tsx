@@ -128,8 +128,10 @@ export const SolarSystem = () => {
         {/* Saturn's rings - scaled to match planet size */}
         <mesh position={[saturnPos.x, 0, saturnPos.z]} rotation-x={Math.PI / 2}>
           <ringGeometry args={[PLANETS.saturn.radiusGameUnits * 1.2, PLANETS.saturn.radiusGameUnits * 2.0, 64]} />
-          <meshBasicMaterial
+          <meshStandardMaterial
             color="#FAD5A5"
+            emissive="#FAD5A5"
+            emissiveIntensity={0.3}
             side={THREE.DoubleSide}
             transparent
             opacity={0.6}
