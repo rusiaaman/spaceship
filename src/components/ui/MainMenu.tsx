@@ -3,6 +3,7 @@ import styled from '@emotion/styled'
 import { useGameStore } from '@/store/gameStore'
 import { soundManager } from '@/utils/soundManager'
 import { SHIP_SIZE_CLASSES, type ShipSizeClass } from '@/utils/constants'
+import { Settings } from './Settings'
 
 const MenuContainer = styled.div`
   position: fixed;
@@ -166,7 +167,9 @@ export const MainMenu = () => {
   
   const [focusedIndex, setFocusedIndex] = useState<number>(-1)
   const [showModeSelect, setShowModeSelect] = useState(true)
+  const [showSettings, setShowSettings] = useState(false)
   const startButtonRef = useRef<HTMLButtonElement>(null)
+  const settingsButtonRef = useRef<HTMLButtonElement>(null)
   const sizeClasses = Object.keys(SHIP_SIZE_CLASSES) as ShipSizeClass[]
 
   const handleSinglePlayer = () => {
@@ -189,6 +192,8 @@ export const MainMenu = () => {
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (showSettings) return // Don't handle keys when settings is open
+      
       if (e.key === 'ArrowLeft') {
         e.preventDefault()
         const currentIndex = sizeClasses.indexOf(playerSizeClass)
@@ -218,7 +223,7 @@ export const MainMenu = () => {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [playerSizeClass, setPlayerSizeClass, focusedIndex, sizeClasses])
+  }, [playerSizeClass, setPlayerSizeClass, focusedIndex, sizeClasses, showSettings])
 
   // Show mode selection first
   if (showModeSelect) {
@@ -299,6 +304,13 @@ export const MainMenu = () => {
           BACK
         </Button>
         <Button 
+          ref={settingsButtonRef}
+          onClick={() => setShowSettings(true)}
+          style={{ flex: 1, padding: '20px 40px' }}
+        >
+          SETTINGS
+        </Button>
+        <Button 
           ref={startButtonRef} 
           onClick={handleStart}
           style={{ flex: 2 }}
@@ -311,6 +323,8 @@ export const MainMenu = () => {
         Race through the cosmos at hyperspeed.<br />
         Master your controls and claim victory.
       </Subtitle>
+      
+      {showSettings && <Settings onClose={() => setShowSettings(false)} />}
     </MenuContainer>
   )
 }

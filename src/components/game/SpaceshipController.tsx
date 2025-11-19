@@ -6,7 +6,7 @@ import { useGameStore } from '@/store/gameStore'
 import { useMultiplayerStore } from '@/multiplayer/MultiplayerGameStore'
 import { getMultiplayerController } from '@/multiplayer/MultiplayerController'
 import { GAME_CONSTANTS } from '@/utils/constants'
-import { SOLAR_CONSTANTS } from '@/utils/solarSystemData'
+import { SOLAR_CONSTANTS, PLANETS, PLANETARY_POSITIONS } from '@/utils/solarSystemData'
 import { profiler } from '@/utils/profiler'
 import { ShipState, BitFlagUtils } from '@/utils/BitFlags'
 import { soundManager } from '@/utils/soundManager'
@@ -26,18 +26,22 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
   const getPlayerSizeConfig = useGameStore(state => state.getPlayerSizeConfig);
 
   const checkFinishCollision = (position: THREE.Vector3) => {
-    const finishZ = -GAME_CONSTANTS.RACE_DISTANCE;
-    const finishRadius = GAME_CONSTANTS.FINISH_DISK_RADIUS;
+    // Check collision with Neptune sphere
+    const neptunePos = new THREE.Vector3(
+      PLANETARY_POSITIONS.neptune.x,
+      PLANETARY_POSITIONS.neptune.y,
+      PLANETARY_POSITIONS.neptune.z
+    )
+    const neptuneRadius = PLANETS.neptune.radiusGameUnits
     
-    // Check if the spaceship has reached the finish line Z position
-    if (position.z <= finishZ && isRaceStarted && gameState === 'playing') {
-        // Check if within the finish disk radius
-        const distanceFromCenter = Math.sqrt(position.x * position.x + position.y * position.y);
-        if (distanceFromCenter <= finishRadius) {
+    // Calculate distance to Neptune's center
+    const distanceToNeptune = position.distanceTo(neptunePos)
+    
+    // Check if player has touched Neptune
+    if (distanceToNeptune <= neptuneRadius && isRaceStarted && gameState === 'playing') {
       const raceTime = useGameStore.getState().raceTime;
-          soundManager.playSound('victory')
-          useGameStore.getState().finishRace(raceTime);
-        }
+      soundManager.playSound('victory')
+      useGameStore.getState().finishRace(raceTime);
     }
   }
 
@@ -272,21 +276,15 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
           spaceship.rotateOnAxis(localXAxis, pitchDelta);
         }
 
-        // Clamp pitch to prevent extreme flipping
+        // Clamp pitch to prevent extreme flipping (Increased range to allow looking down)
         // Extract pitch from quaternion to clamp it properly
         const euler = new THREE.Euler().setFromQuaternion(spaceship.quaternion, 'YXZ');
-        euler.x = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, euler.x));
+        // Allow almost 90 degrees (PI/2 is ~1.57)
+        euler.x = Math.max(-1.5, Math.min(1.5, euler.x));
         spaceship.quaternion.setFromEuler(euler);
         
-        // Gentler auto-leveling - only when not actively controlling
-        const isActivelyPitching = controls.up || controls.down || Math.abs(controls.mouseDeltaY) > 0.5;
-        if (!isActivelyPitching && !controls.forward) {
-          // Gentle damping to return to level flight
-          const currentEuler = new THREE.Euler().setFromQuaternion(spaceship.quaternion, 'YXZ');
-          currentEuler.x = THREE.MathUtils.damp(currentEuler.x, 0, 3, delta);
-          spaceship.quaternion.setFromEuler(currentEuler);
-        }
-
+        // Auto-leveling removed to allow smooth looking around without forced tilting
+        
         // --- Position ---
         // Use local forward direction (always -Z in local space) for consistent controls
         // This fixes the issue where controls invert when facing backwards

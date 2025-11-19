@@ -84,6 +84,12 @@ interface GameStore {
   // Checkpoint tracking
   checkpointsPassed: number
   totalCheckpoints: number
+  
+  // Settings
+  settings: {
+    starFieldEnabled: boolean
+    boostersEnabled: boolean
+  }
 
   // Combat state - optimized with typed arrays
   playerHealth: number
@@ -157,6 +163,10 @@ interface GameStore {
   updateKillStreak: (killed: boolean) => void
   resetCombatStats: () => void
   getCombatStats: () => CombatStats
+  
+  // Settings actions
+  toggleStarField: () => void
+  toggleBoosters: () => void
 }
 
 // Generate random size classes for AI ships
@@ -191,6 +201,12 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
   // Checkpoint tracking
   checkpointsPassed: 0,
   totalCheckpoints: 5,
+  
+  // Settings
+  settings: {
+    starFieldEnabled: false,
+    boostersEnabled: false,
+  },
 
   // Combat state - optimized with typed arrays
   // Health based on ship size
@@ -782,4 +798,19 @@ export const useGameStore = create<GameStore>((set): GameStore => ({
       set({ gameState });
     }
   },
+  
+  // Settings actions
+  toggleStarField: () => set((state) => ({
+    settings: {
+      ...state.settings,
+      starFieldEnabled: !state.settings.starFieldEnabled
+    }
+  })),
+  
+  toggleBoosters: () => set((state) => ({
+    settings: {
+      ...state.settings,
+      boostersEnabled: !state.settings.boostersEnabled
+    }
+  })),
 }))

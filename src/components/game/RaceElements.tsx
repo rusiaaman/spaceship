@@ -2,13 +2,12 @@
 import { useMemo, useRef, forwardRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { GAME_CONSTANTS } from '@/utils/constants';
-import { Cylinder, Torus, Text3D, Center } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '@/store/gameStore';
 import { profiler } from '@/utils/profiler';
 import { ShipState, BitFlagUtils } from '@/utils/BitFlags';
 import { PredictiveTargeting } from '@/utils/AIBehaviors';
-import { SOLAR_CONSTANTS } from '@/utils/solarSystemData';
+import { SOLAR_CONSTANTS, PLANETS, PLANETARY_POSITIONS } from '@/utils/solarSystemData';
 
 interface AIShipProps {
   position: [number, number, number];
@@ -21,9 +20,74 @@ interface AIShipProps {
 const aiBodyGeometry = new THREE.BoxGeometry(2, 1, 4)
 const aiWingGeometry = new THREE.BoxGeometry(6, 0.3, 2)
 
+// Reuseable star texture for AI ships (same logic as Planets)
+const getShipStarTexture = () => {
+  const canvas = document.createElement('canvas')
+  canvas.width = 64
+  canvas.height = 64
+  const ctx = canvas.getContext('2d')
+  if (ctx) {
+    const grad = ctx.createRadialGradient(32, 32, 4, 32, 32, 30)
+    grad.addColorStop(0, 'rgba(255, 255, 255, 1)')
+    grad.addColorStop(0.4, 'rgba(255, 255, 255, 0.8)')
+    grad.addColorStop(1, 'rgba(255, 255, 255, 0)')
+    ctx.fillStyle = grad
+    ctx.fillRect(0, 0, 64, 64)
+  }
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  return texture
+}
+
 const AISpaceship = forwardRef<THREE.Group, AIShipProps>(({ position, rotationY, color, sizeScale }, ref) => {
+  const groupRef = useRef<THREE.Group>(null)
+  const starDotRef = useRef<THREE.Points>(null)
+  const starMaterialRef = useRef<THREE.PointsMaterial>(null)
+  
+  // Sync external ref with internal ref
+  useEffect(() => {
+    if (!ref) return
+    if (typeof ref === 'function') {
+      ref(groupRef.current)
+    } else {
+      ref.current = groupRef.current
+    }
+  }, [ref])
+
+  const starTexture = useMemo(() => getShipStarTexture(), [])
+  const dotGeometry = useMemo(() => {
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3))
+    return geo
+  }, [])
+
+  useFrame((state) => {
+    if (groupRef.current && starMaterialRef.current && starDotRef.current) {
+       const dist = state.camera.position.distanceTo(groupRef.current.position)
+       
+       // Fading logic for ships
+       // Ships are small (~5 units). Fade in dot when we are > 500 units away.
+       const fadeStart = 2000
+       const fadeEnd = 200
+       
+       let opacity = 0
+       if (dist > fadeStart) {
+         opacity = 1.0
+       } else if (dist > fadeEnd) {
+         opacity = (dist - fadeEnd) / (fadeStart - fadeEnd)
+       }
+       
+       // Always visible if far enough
+       starMaterialRef.current.opacity = opacity
+       starDotRef.current.visible = opacity > 0.01
+       
+       // Note: We are modifying material per instance? 
+       // No, materials are creating inside component, so unique per ship instance. SAFE.
+    }
+  })
+
   return (
-    <group position={position} rotation-y={rotationY} ref={ref} scale={0.5 * sizeScale}>
+    <group position={position} rotation-y={rotationY} ref={groupRef} scale={0.5 * sizeScale}>
       {/* Main body - using shared geometry, scaled by ship size (matches player ship scale) */}
       <mesh geometry={aiBodyGeometry} position={[0, 0, 0]}>
         <meshStandardMaterial 
@@ -46,114 +110,27 @@ const AISpaceship = forwardRef<THREE.Group, AIShipProps>(({ position, rotationY,
           toneMapped={false}
         />
       </mesh>
+      
+      {/* Distant Visibility Star Dot */}
+      <points ref={starDotRef} geometry={dotGeometry}>
+        <pointsMaterial
+          ref={starMaterialRef}
+          map={starTexture}
+          size={6} // Slightly smaller than planets (8)
+          sizeAttenuation={false}
+          color={new THREE.Color(color)}
+          transparent={true}
+          opacity={1}
+          depthWrite={false}
+          depthTest={true}
+          blending={THREE.AdditiveBlending}
+        />
+      </points>
     </group>
   );
 });
 AISpaceship.displayName = 'AISpaceship'
 
-// Finish Disk component - Vertical disk facing the starting position
-const FinishDisk = () => {
-  const { RACE_DISTANCE } = GAME_CONSTANTS;
-  
-  // Position the disk far away on the negative Z axis
-  const position: [number, number, number] = [0, 0, -RACE_DISTANCE];
-
-  // MASSIVE scale to match booster visibility (100M km radius base)
-  const VISUAL_RADIUS = 100000000; // 100 million km - matches booster scale and collision
-  const RING_THICKNESS = 10000000; // 10 million km
-
-  return (
-    <group position={position}>
-      {/* Main outer ring - MASSIVE scale matching boosters */}
-      <Torus args={[VISUAL_RADIUS, RING_THICKNESS, 16, 64]}>
-        <meshStandardMaterial 
-          color="#00ff00" 
-          emissive="#00ff00"
-          emissiveIntensity={2.0}
-          toneMapped={false}
-        />
-      </Torus>
-      
-      {/* Inner ring for depth */}
-      <Torus args={[VISUAL_RADIUS * 0.75, RING_THICKNESS * 0.8, 16, 64]}>
-        <meshStandardMaterial 
-          color="#00ff00" 
-          emissive="#00ff00"
-          emissiveIntensity={1.5}
-          transparent 
-          opacity={0.7}
-          toneMapped={false}
-        />
-      </Torus>
-      
-      {/* Outer glow ring for extreme distance visibility */}
-      <Torus args={[VISUAL_RADIUS * 1.2, RING_THICKNESS * 1.2, 16, 64]}>
-        <meshStandardMaterial 
-          color="#00ff00" 
-          emissive="#00ff00"
-          emissiveIntensity={1.2}
-          transparent 
-          opacity={0.5}
-          toneMapped={false}
-        />
-      </Torus>
-      
-      {/* Additional ultra-wide glow ring */}
-      <Torus args={[VISUAL_RADIUS * 1.5, RING_THICKNESS * 1.5, 16, 64]}>
-        <meshStandardMaterial 
-          color="#00ff00" 
-          emissive="#00ff00"
-          emissiveIntensity={1.0}
-          transparent 
-          opacity={0.3}
-          toneMapped={false}
-        />
-      </Torus>
-      
-      {/* Inner transparent disk - using VISUAL_RADIUS to match collision detection */}
-      <Cylinder args={[VISUAL_RADIUS * 0.9, VISUAL_RADIUS * 0.9, 100, 64, 1, true]} rotation-x={Math.PI / 2}>
-        <meshStandardMaterial 
-          color="#00ff00" 
-          emissive="#00ff00"
-          emissiveIntensity={0.5}
-          transparent 
-          opacity={0.05} 
-          side={THREE.DoubleSide}
-          toneMapped={false}
-        />
-      </Cylinder>
-      
-      {/* Point light for massive glow - matches booster light setup */}
-      <pointLight 
-        position={[0, 0, 0]} 
-        color="#00ff00" 
-        intensity={1000} 
-        distance={200000000} 
-      />
-      
-      {/* 3D Text Label - MASSIVE scale */}
-      <Center position={[0, VISUAL_RADIUS * 1.3, 0]} rotation-y={Math.PI}>
-        <Text3D
-          font="/fonts/Orbitron_Bold.json"
-          size={VISUAL_RADIUS * 0.08}
-          height={VISUAL_RADIUS * 0.015}
-          curveSegments={12}
-          bevelEnabled
-          bevelThickness={VISUAL_RADIUS * 0.003}
-          bevelSize={VISUAL_RADIUS * 0.002}
-          bevelOffset={0}
-          bevelSegments={5}
-        >
-          FINISH LINE
-          <meshBasicMaterial 
-            color="#00ff00" 
-            toneMapped={false}
-          />
-        </Text3D>
-      </Center>
-    </group>
-  );
-};
 
 interface RacerStanding {
   id: number | 'player';
@@ -229,7 +206,7 @@ const AIManager = () => {
     AI_COUNT, AI_SPEED_MULTIPLIER, AI_SPEED_VARIANCE,
     AI_LATERAL_SWAY_AMPLITUDE, AI_LATERAL_SWAY_FREQUENCY,
     MAX_SPEED, RACE_DISTANCE, AI_INITIAL_Z_MIN, AI_INITIAL_Z_MAX,
-    FINISH_DISK_RADIUS, AI_SHOOT_CHANCE, AI_SHOOT_RANGE, AI_SHOOT_CONE,
+    AI_SHOOT_CHANCE, AI_SHOOT_RANGE, AI_SHOOT_CONE,
     AI_ACCURACY, AI_FIRE_RATE
   } = GAME_CONSTANTS
 
@@ -582,8 +559,17 @@ const AIManager = () => {
         }
       }
 
-      // Finish detection: cross finishZ and within disk radius
-      if (!st.finished && st.z <= finishZ && Math.abs(finalX) <= FINISH_DISK_RADIUS) {
+      // Finish detection: collision with Neptune sphere
+      const neptunePos = new THREE.Vector3(
+        PLANETARY_POSITIONS.neptune.x,
+        PLANETARY_POSITIONS.neptune.y,
+        PLANETARY_POSITIONS.neptune.z
+      )
+      const aiPos = new THREE.Vector3(finalX, 0, st.z)
+      const distanceToNeptune = aiPos.distanceTo(neptunePos)
+      const neptuneRadius = PLANETS.neptune.radiusGameUnits
+      
+      if (!st.finished && distanceToNeptune <= neptuneRadius) {
         st.finished = true
         st.finishTime = useGameStore.getState().raceTime
         finishOrderRef.current.push(st.id)
@@ -675,7 +661,6 @@ const AIManager = () => {
 const RaceElements = () => {
   return (
     <group>
-      <FinishDisk />
       <AIManager />
     </group>
   );

@@ -1,6 +1,7 @@
 import styled from '@emotion/styled'
 import { useGameStore } from '@/store/gameStore'
 import { useEffect, useState, useRef } from 'react'
+import { Settings } from './Settings'
 
 const PauseContainer = styled.div`
   position: fixed;
@@ -63,24 +64,38 @@ const Button = styled.button<{ isFocused?: boolean }>`
 
 export const PauseMenu = () => {
   const { setGameState, resetGame } = useGameStore()
-  const [focusedButton, setFocusedButton] = useState<'resume' | 'menu'>('resume')
+  const [focusedButton, setFocusedButton] = useState<'resume' | 'settings' | 'menu'>('resume')
+  const [showSettings, setShowSettings] = useState(false)
   const resumeButtonRef = useRef<HTMLButtonElement>(null)
+  const settingsButtonRef = useRef<HTMLButtonElement>(null)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (showSettings) return // Don't handle keys when settings is open
+      
       if (e.key === 'Escape') {
         setGameState('playing')
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
-        setFocusedButton('resume')
+        if (focusedButton === 'settings') {
+          setFocusedButton('resume')
+        } else if (focusedButton === 'menu') {
+          setFocusedButton('settings')
+        }
       } else if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setFocusedButton('menu')
+        if (focusedButton === 'resume') {
+          setFocusedButton('settings')
+        } else if (focusedButton === 'settings') {
+          setFocusedButton('menu')
+        }
       } else if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault()
         if (focusedButton === 'resume') {
           handleResume()
+        } else if (focusedButton === 'settings') {
+          handleSettings()
         } else {
           handleMainMenu()
         }
@@ -89,10 +104,14 @@ export const PauseMenu = () => {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [setGameState, focusedButton])
+  }, [setGameState, focusedButton, showSettings])
 
   const handleResume = () => {
     setGameState('playing')
+  }
+
+  const handleSettings = () => {
+    setShowSettings(true)
   }
 
   const handleMainMenu = () => {
@@ -100,26 +119,38 @@ export const PauseMenu = () => {
   }
 
   return (
-    <PauseContainer>
-      <Title>PAUSED</Title>
-      <ButtonGroup>
-        <Button 
-          ref={resumeButtonRef}
-          isFocused={focusedButton === 'resume'}
-          onClick={handleResume}
-          onMouseEnter={() => setFocusedButton('resume')}
-        >
-          Resume
-        </Button>
-        <Button 
-          ref={menuButtonRef}
-          isFocused={focusedButton === 'menu'}
-          onClick={handleMainMenu}
-          onMouseEnter={() => setFocusedButton('menu')}
-        >
-          Main Menu
-        </Button>
-      </ButtonGroup>
-    </PauseContainer>
+    <>
+      <PauseContainer>
+        <Title>PAUSED</Title>
+        <ButtonGroup>
+          <Button 
+            ref={resumeButtonRef}
+            isFocused={focusedButton === 'resume'}
+            onClick={handleResume}
+            onMouseEnter={() => setFocusedButton('resume')}
+          >
+            Resume
+          </Button>
+          <Button 
+            ref={settingsButtonRef}
+            isFocused={focusedButton === 'settings'}
+            onClick={handleSettings}
+            onMouseEnter={() => setFocusedButton('settings')}
+          >
+            Settings
+          </Button>
+          <Button 
+            ref={menuButtonRef}
+            isFocused={focusedButton === 'menu'}
+            onClick={handleMainMenu}
+            onMouseEnter={() => setFocusedButton('menu')}
+          >
+            Main Menu
+          </Button>
+        </ButtonGroup>
+      </PauseContainer>
+      
+      {showSettings && <Settings onClose={() => setShowSettings(false)} />}
+    </>
   )
 }

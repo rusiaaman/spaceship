@@ -53,6 +53,7 @@ const MultiplayerUpdateManager = () => {
 export const GameScene = () => {
   const spaceshipRef = useRef<THREE.Group>(null!)
   const gameState = useGameStore((state) => state.gameState)
+  const settings = useGameStore((state) => state.settings)
   const isMultiplayer = useMultiplayerStore((state) => state.isMultiplayer)
 
   // Initialize multiplayer controller when entering game
@@ -77,7 +78,8 @@ export const GameScene = () => {
         powerPreference: 'high-performance',
         alpha: false,
         stencil: false,
-        depth: true
+        depth: true,
+        logarithmicDepthBuffer: true // Essential for astronomical scale preventing z-fighting
       }}
       dpr={[1, 1.5]} // Limit pixel ratio for better performance
       style={{ background: '#000000' }}
@@ -93,12 +95,12 @@ export const GameScene = () => {
       {gameState === 'countdown' && <CountdownCamera />}
       
       {/* Game elements */}
-      <StarField />
+      {settings.starFieldEnabled && <StarField />}
       <SolarSystem />
       <TrackCheckpoints />
       <Cockpit />
       <RaceElements />
-      <BoosterManager />
+      {settings.boostersEnabled && <BoosterManager />}
       <WeaponSystem />
       <CombatEffectsManager />
       <SpatialIndexManager />
