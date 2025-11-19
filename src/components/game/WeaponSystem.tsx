@@ -1,5 +1,5 @@
 import { useRef, useMemo, useCallback } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameStore } from '@/store/gameStore'
 import { GAME_CONSTANTS } from '@/utils/constants'
@@ -17,6 +17,25 @@ const sharedBeamGeometry = new THREE.CylinderGeometry(
   1
 )
 sharedBeamGeometry.rotateX(Math.PI / 2)
+
+// Reusable texture generator for the dot
+const getDotTexture = () => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const grad = ctx.createRadialGradient(32, 32, 4, 32, 32, 30);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    grad.addColorStop(0.4, 'rgba(255, 255, 255, 0.8)');
+    grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 64, 64);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+};
 
 // Constant vector
 const upVector = new THREE.Vector3(0, 0, 1) // World Y axis for cylinder orientation
@@ -176,6 +195,26 @@ interface LaserBeamProps {
 const LaserBeam = ({ projectile }: LaserBeamProps) => {
   const groupRef = useRef<THREE.Group>(null)
   
+  // Refs for distant dot
+  const dotRef = useRef<THREE.Points>(null);
+  const dotMaterialRef = useRef<THREE.PointsMaterial>(null);
+  
+  const { camera } = useThree();
+
+  // Generate texture and geometry once
+  const projectileDotTexture = useMemo(() => getDotTexture(), []);
+  const dotGeometry = useMemo(() => {
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3))
+    return geo
+  }, []);
+
+  // Constants for distance fade
+  // Using a proxy radius of 0.5 for consistent distance scaling
+  const PROJECTILE_VISUAL_RADIUS_PROXY = 0.5; 
+  const FADE_START = PROJECTILE_VISUAL_RADIUS_PROXY * 2000;
+  const FADE_END = PROJECTILE_VISUAL_RADIUS_PROXY * 200;
+
   // Local temporary mutable objects for calculations within useFrame
   const localTempVec1 = useRef(new THREE.Vector3()).current
   const localTempVec2 = useRef(new THREE.Vector3()).current
@@ -192,10 +231,54 @@ const LaserBeam = ({ projectile }: LaserBeamProps) => {
     localTempVec2.copy(projectile.direction).normalize()
     localTempQuat.setFromUnitVectors(upVector, localTempVec2)
     groupRef.current.quaternion.copy(localTempQuat)
+
+    // Projectile Dot / Visibility Logic
+    if (dotMaterialRef.current && dotRef.current) {
+      const worldPos = new THREE.Vector3();
+      groupRef.current.getWorldPosition(worldPos);
+      const dist = camera.position.distanceTo(worldPos);
+
+      let opacity = 0;
+      let modelVisible = true;
+      
+      if (dist > FADE_START) {
+        opacity = 1.0;
+        modelVisible = false; 
+      } else if (dist > FADE_END) {
+        opacity = (dist - FADE_END) / (FADE_START - FADE_END);
+        modelVisible = opacity < 0.5; 
+      }
+
+      // The actual mesh is the first child of the group (index 0)
+      const beamMesh = groupRef.current.children[0];
+      if (beamMesh instanceof THREE.Mesh) {
+         beamMesh.visible = modelVisible;
+      }
+
+      dotMaterialRef.current.opacity = opacity;
+      dotRef.current.visible = opacity > 0.01;
+      dotMaterialRef.current.depthWrite = false; 
+    }
   })
 
   return (
     <group ref={groupRef}>
+      {/* Screen-space Dot for distant visibility */}
+      <points ref={dotRef} geometry={dotGeometry}>
+        <pointsMaterial
+          ref={dotMaterialRef}
+          map={projectileDotTexture}
+          size={3} // Very small dot size
+          sizeAttenuation={false} 
+          color={new THREE.Color(projectile.color)} 
+          transparent={true}
+          opacity={1}
+          depthWrite={false}
+          depthTest={true} 
+          blending={THREE.AdditiveBlending}
+        />
+      </points>
+
       {/* Single optimized beam with emissive glow */}
       <mesh geometry={sharedBeamGeometry}>
         <meshStandardMaterial
