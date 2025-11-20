@@ -6,7 +6,7 @@ import { useGameStore } from '@/store/gameStore'
 import { useMultiplayerStore } from '@/multiplayer/MultiplayerGameStore'
 import { getMultiplayerController } from '@/multiplayer/MultiplayerController'
 import { GAME_CONSTANTS } from '@/utils/constants'
-import { SOLAR_CONSTANTS, PLANETS, PLANETARY_POSITIONS } from '@/utils/solarSystemData'
+import { SOLAR_CONSTANTS, PLANETARY_POSITIONS } from '@/utils/solarSystemData'
 import { profiler } from '@/utils/profiler'
 import { ShipState, BitFlagUtils } from '@/utils/BitFlags'
 import { soundManager } from '@/utils/soundManager'
@@ -26,19 +26,18 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
   const getPlayerSizeConfig = useGameStore(state => state.getPlayerSizeConfig);
 
   const checkFinishCollision = (position: THREE.Vector3) => {
-    // Check collision with Neptune sphere
+    // Check collision with Neptune sphere (1000km from surface)
     const neptunePos = new THREE.Vector3(
       PLANETARY_POSITIONS.neptune.x,
       PLANETARY_POSITIONS.neptune.y,
       PLANETARY_POSITIONS.neptune.z
     )
-    const neptuneRadius = PLANETS.neptune.radiusGameUnits
     
     // Calculate distance to Neptune's center
     const distanceToNeptune = position.distanceTo(neptunePos)
     
-    // Check if player has touched Neptune
-    if (distanceToNeptune <= neptuneRadius && isRaceStarted && gameState === 'playing') {
+    // Finish at 1000km from Neptune surface (106,759 gu from center)
+    if (distanceToNeptune <= GAME_CONSTANTS.FINISH_NEPTUNE_THRESHOLD && isRaceStarted && gameState === 'playing') {
       const raceTime = useGameStore.getState().raceTime;
       soundManager.playSound('victory')
       useGameStore.getState().finishRace(raceTime);
@@ -129,9 +128,13 @@ export const SpaceshipController = forwardRef<THREE.Group>((_, ref) => {
       // Check if player needs to transition from RESPAWNING to ACTIVE after delay
       checkPlayerRespawn(raceTime);
       
-      // Update distance to finish (throttled)
-      const finishZ = -GAME_CONSTANTS.RACE_DISTANCE;
-      const distance = Math.max(0, Math.abs(spaceship.position.z - finishZ));
+      // Update distance to finish - distance to Neptune center
+      const neptunePos = new THREE.Vector3(
+        PLANETARY_POSITIONS.neptune.x,
+        PLANETARY_POSITIONS.neptune.y,
+        PLANETARY_POSITIONS.neptune.z
+      )
+      const distance = Math.max(0, spaceship.position.distanceTo(neptunePos))
       setDistanceToFinish(distance);
       
 

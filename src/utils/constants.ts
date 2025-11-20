@@ -70,19 +70,16 @@ export const GAME_CONSTANTS = {
   STAR_SPREAD: 9371683294, // TRUE scale - spans half the solar system!
   
   // Racing Constants - TRUE ASTRONOMICAL SCALE
-  // Distance from Moon orbit to Neptune orbit (18.7 BILLION game units!)
-  // At speed 100 (52.35 million gu/s = 41.9c), this takes ~6 minutes to complete
-  RACE_DISTANCE: 18743366587, // Z-coordinate distance to the finish disk (Neptune) - TRUE distance!
-  FINISH_DISK_RADIUS: 100000000, // 24M km collision radius - matches visual scale for detection
+  // Finish at Neptune: 1000km from surface (106,759 gu from center)
+  FINISH_NEPTUNE_THRESHOLD: 106759, // Distance to Neptune center for finish detection
+  RACE_DISTANCE: 18743366587, // Deprecated - use FINISH_NEPTUNE_THRESHOLD instead
   AI_SPEED_MULTIPLIER: 0.85,
   AI_COUNT: 15,
 
   // AI behavior tuning - TRUE scale
-  AI_SPEED_VARIANCE: 0.2,
-  AI_LATERAL_SWAY_AMPLITUDE: 10000, // 2,400 km sway
-  AI_LATERAL_SWAY_FREQUENCY: 0.5,
-  AI_INITIAL_Z_MIN: -100000, // Much further ahead
-  AI_INITIAL_Z_MAX: -50000,
+  // V-Formation spawning (no variance, no sway)
+  AI_FORMATION_ROW_Z_OFFSET: 10, // gu forward per row
+  AI_FORMATION_ROW_X_SPREAD: 6.42, // gu sideways per row (wings almost touch)
   
   // Ship size configuration
   DEFAULT_PLAYER_SIZE: 'MEDIUM' as ShipSizeClass,

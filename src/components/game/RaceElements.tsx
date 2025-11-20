@@ -7,7 +7,7 @@ import { useGameStore } from '@/store/gameStore';
 import { profiler } from '@/utils/profiler';
 import { ShipState, BitFlagUtils } from '@/utils/BitFlags';
 import { PredictiveTargeting } from '@/utils/AIBehaviors';
-import { SOLAR_CONSTANTS, PLANETS, PLANETARY_POSITIONS } from '@/utils/solarSystemData';
+import { SOLAR_CONSTANTS, PLANETARY_POSITIONS } from '@/utils/solarSystemData';
 
 interface AIShipProps {
   position: [number, number, number];
@@ -195,17 +195,14 @@ type AIShipInternal = {
   baseX: number
   z: number
   speed: number
-  phase: number
-  xOffset: number
   finished: boolean
   finishTime?: number
 }
 
 const AIManager = () => {
   const { 
-    AI_COUNT, AI_SPEED_MULTIPLIER, AI_SPEED_VARIANCE,
-    AI_LATERAL_SWAY_AMPLITUDE, AI_LATERAL_SWAY_FREQUENCY,
-    MAX_SPEED, RACE_DISTANCE, AI_INITIAL_Z_MIN, AI_INITIAL_Z_MAX,
+    AI_COUNT, AI_FORMATION_ROW_Z_OFFSET, AI_FORMATION_ROW_X_SPREAD,
+    FINISH_NEPTUNE_THRESHOLD, LOG_GROWTH_RATE, LOG_BASE_ACCEL,
     AI_SHOOT_CHANCE, AI_SHOOT_RANGE, AI_SHOOT_CONE,
     AI_ACCURACY, AI_FIRE_RATE
   } = GAME_CONSTANTS
@@ -236,25 +233,37 @@ const AIManager = () => {
       'Predator', 'Ghost', 'Stinger', 'Raptor', 'Kraken',
       'Comet', 'Arrow', 'Nova', 'Pulsar', 'Goliath'
     ];
-    const half = (AI_COUNT - 1) / 2
 
     return Array.from({ length: AI_COUNT }).map((_, i) => {
       const sizeConfig = getAISizeConfig(i)
-      const baseX = (i - half) * 8 * sizeConfig.scale // Adjust spacing based on size
-      // Spawn ahead of player toward finish (negative z)
-      const nearMin = Math.min(Math.abs(AI_INITIAL_Z_MIN), Math.abs(AI_INITIAL_Z_MAX))
-      const nearMax = Math.max(Math.abs(AI_INITIAL_Z_MIN), Math.abs(AI_INITIAL_Z_MAX))
-      const zNeg = - (Math.random() * (nearMax - nearMin) + nearMin)
+      
+      // V-Formation: Player at center, AIs spread in V toward Neptune
+      // Left wing: AI 0-6, Right wing: AI 7-13
+      let baseX: number
+      let initialZ: number
+      
+      if (i < AI_COUNT / 2) {
+        // Left wing
+        const row = i
+        baseX = -(row + 1) * AI_FORMATION_ROW_X_SPREAD
+        initialZ = -(row + 1) * AI_FORMATION_ROW_Z_OFFSET
+      } else {
+        // Right wing
+        const row = i - Math.floor(AI_COUNT / 2)
+        baseX = (row + 1) * AI_FORMATION_ROW_X_SPREAD
+        initialZ = -(row + 1) * AI_FORMATION_ROW_Z_OFFSET
+      }
+      
       return {
         id: i,
         name: names[i % names.length],
         color: colors[i % colors.length],
         baseX,
-        initialZ: zNeg as number,
+        initialZ,
         sizeScale: sizeConfig.scale
       }
     })
-  }, [AI_COUNT, AI_INITIAL_Z_MAX, AI_INITIAL_Z_MIN, getAISizeConfig])
+  }, [AI_COUNT, AI_FORMATION_ROW_Z_OFFSET, AI_FORMATION_ROW_X_SPREAD, getAISizeConfig])
 
   const aiRefs = useRef<THREE.Group[]>([])
   aiRefs.current = []
@@ -270,19 +279,13 @@ const AIManager = () => {
   // Initialize AI states immediately (not in useEffect to avoid timing issues)
   if (aiStateRef.current.length === 0 || !initOnceRef.current) {
     aiStateRef.current = aiShipsData.map((d) => {
-      const sizeConfig = getAISizeConfig(d.id)
-      const variance = 1 + (Math.random() * 2 - 1) * AI_SPEED_VARIANCE
-      // Use size-specific max speed
-      const speed = sizeConfig.maxSpeed * AI_SPEED_MULTIPLIER * variance
       return {
         id: d.id,
         name: d.name,
         color: d.color,
         baseX: d.baseX,
         z: d.initialZ,
-        speed,
-        phase: Math.random() * Math.PI * 2,
-        xOffset: 0,
+        speed: 0, // Start at 0, will accelerate like player
         finished: false,
       }
     })
@@ -295,28 +298,22 @@ const AIManager = () => {
   useEffect(() => {
     if (gameState === 'menu' || gameState === 'camera-sweep' || gameState === 'countdown') {
       aiStateRef.current = aiShipsData.map((d) => {
-        const sizeConfig = getAISizeConfig(d.id)
-        const variance = 1 + (Math.random() * 2 - 1) * AI_SPEED_VARIANCE
-        // Use size-specific max speed
-        const speed = sizeConfig.maxSpeed * AI_SPEED_MULTIPLIER * variance
         return {
           id: d.id,
           name: d.name,
           color: d.color,
           baseX: d.baseX,
           z: d.initialZ,
-          speed,
-          phase: Math.random() * Math.PI * 2,
-          xOffset: 0,
+          speed: 0,
           finished: false,
         }
       })
       finishOrderRef.current = []
       aiEndedRef.current = false
     }
-  }, [aiShipsData, gameState, MAX_SPEED, AI_SPEED_MULTIPLIER, AI_SPEED_VARIANCE, getAISizeConfig])
+  }, [aiShipsData, gameState, getAISizeConfig])
 
-  useFrame((state, delta) => {
+  useFrame((_state, delta) => {
     profiler.start('AIManager.frame')
     
     frameCounterRef.current++
@@ -325,8 +322,6 @@ const AIManager = () => {
     // AI update every 2 frames for performance (still smooth at 30 AI updates/sec)
     const shouldUpdateAI = currentFrame - lastAIUpdateFrame.current >= 2
     
-    const finishZ = -RACE_DISTANCE
-    const t = state.clock.elapsedTime
     const raceTime = useGameStore.getState().raceTime
     const lastAIShotTimes = useGameStore.getState().lastAIShotTimes
 
@@ -345,46 +340,6 @@ const AIManager = () => {
 
     // Early exit: if finished, keep updating standings but don't move
     const standingsTemp: { id: number, name: string, distance: number, finished: boolean, finishTime?: number }[] = []
-
-    // First pass: desired positions (without separation)
-    profiler.start('AIManager.positionCalc')
-    const desiredX: number[] = []
-    const currentZ: number[] = []
-    for (let i = 0; i < aiStateRef.current.length; i++) {
-      const st = aiStateRef.current[i]
-      const sway = Math.sin(t * AI_LATERAL_SWAY_FREQUENCY + st.phase) * AI_LATERAL_SWAY_AMPLITUDE
-      desiredX[i] = st.baseX + sway + st.xOffset
-      currentZ[i] = st.z
-    }
-
-    // Optimized separation - only check nearby ships
-    const sepZ = 12
-    const sepX = 4
-    // Only run collision when AI updates
-    if (shouldUpdateAI) {
-      for (let i = 0; i < aiStateRef.current.length; i++) {
-        for (let j = i + 1; j < aiStateRef.current.length; j++) {
-          const dz = Math.abs(currentZ[i] - currentZ[j])
-          if (dz > sepZ) continue // Skip if too far apart in Z
-          
-          const dx = desiredX[i] - desiredX[j]
-          if (Math.abs(dx) < sepX) {
-            const push = (sepX - Math.abs(dx)) * 0.5
-            const dir = dx >= 0 ? 1 : -1
-            aiStateRef.current[i].xOffset += dir * push * delta * 5
-            aiStateRef.current[j].xOffset -= dir * push * delta * 5
-          }
-        }
-      }
-    }
-
-    profiler.end('AIManager.positionCalc')
-    
-    // Dampen xOffset
-    for (let i = 0; i < aiStateRef.current.length; i++) {
-      const st = aiStateRef.current[i]
-      st.xOffset = THREE.MathUtils.damp(st.xOffset, 0, 2, delta)
-    }
 
     // Move, apply positions, and detect finish
     profiler.start('AIManager.updateShips')
@@ -424,7 +379,7 @@ const AIManager = () => {
         if (wasJustRespawned) {
           // Use respawn position only on the first frame after respawn
           st.z = respawnPos.z
-          st.xOffset = respawnPos.x - st.baseX
+          // No xOffset in new formation system
         }
       }
       
@@ -442,6 +397,22 @@ const AIManager = () => {
       }
 
       if (gameState === 'playing' && isRaceStarted && !st.finished) {
+        // Get AI size config for mass-based acceleration
+        const sizeConfig = getAISizeConfig(st.id)
+        const massFactor = 1.0 / Math.max(0.1, sizeConfig.mass)
+        
+        // Apply exponential acceleration (matching player physics)
+        const absSpeed = Math.abs(st.speed)
+        const currentMaxSpeed = sizeConfig.maxSpeed
+        const headroom = Math.max(0, 1 - (absSpeed / currentMaxSpeed))
+        
+        // Same formula as player: (baseAccel + speed * growthRate) * headroom * massFactor
+        const instantaneousAccel = (LOG_BASE_ACCEL + absSpeed * LOG_GROWTH_RATE) * headroom * massFactor
+        st.speed += instantaneousAccel * delta
+        
+        // Clamp to max speed
+        st.speed = Math.min(st.speed, currentMaxSpeed)
+        
         // Apply speed reduction from damage
         const speedReduction = getAISpeedReduction(st.id)
         const effectiveGameSpeed = st.speed * (1 - speedReduction)
@@ -453,10 +424,8 @@ const AIManager = () => {
         st.z -= effectiveSpeed * delta
       }
 
-      // Recompute finalX after separation/damping - TRUE scale
-      const sway = Math.sin(t * AI_LATERAL_SWAY_FREQUENCY + st.phase) * AI_LATERAL_SWAY_AMPLITUDE
-      let finalX = st.baseX + sway + st.xOffset
-      finalX = THREE.MathUtils.clamp(finalX, -100000, 100000) // 24,000 km track width
+      // No sway, no xOffset - ships stay in formation
+      const finalX = st.baseX
       
       // Check booster collision for AI ships (after finalX is calculated)
       if (gameState === 'playing' && isRaceStarted && !st.finished) {
@@ -494,7 +463,7 @@ const AIManager = () => {
 
       if (ref && ref.visible) {
         ref.position.set(finalX, 0, st.z)
-        ref.rotation.z = Math.sin(t * AI_LATERAL_SWAY_FREQUENCY + st.phase) * 0.1
+        // No rotation wobble
         
         // Batch spatial index update
         spatialUpdates.push({
@@ -559,7 +528,7 @@ const AIManager = () => {
         }
       }
 
-      // Finish detection: collision with Neptune sphere
+      // Finish detection: Neptune sphere collision (1000km from surface)
       const neptunePos = new THREE.Vector3(
         PLANETARY_POSITIONS.neptune.x,
         PLANETARY_POSITIONS.neptune.y,
@@ -567,18 +536,18 @@ const AIManager = () => {
       )
       const aiPos = new THREE.Vector3(finalX, 0, st.z)
       const distanceToNeptune = aiPos.distanceTo(neptunePos)
-      const neptuneRadius = PLANETS.neptune.radiusGameUnits
       
-      if (!st.finished && distanceToNeptune <= neptuneRadius) {
+      if (!st.finished && distanceToNeptune <= FINISH_NEPTUNE_THRESHOLD) {
         st.finished = true
         st.finishTime = useGameStore.getState().raceTime
+        st.speed = 0 // Stop at finish
         finishOrderRef.current.push(st.id)
         
         // AI ships can finish, but don't end the race
         // The race only ends when the player finishes (handled in SpaceshipController)
       }
 
-      const dist = st.finished ? 0 : Math.max(0, Math.abs(st.z - finishZ))
+      const dist = st.finished ? 0 : distanceToNeptune
       standingsTemp.push({ id: st.id, name: st.name, distance: dist, finished: st.finished, finishTime: st.finishTime })
     }
     
