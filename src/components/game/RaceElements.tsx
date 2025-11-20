@@ -138,18 +138,19 @@ interface RacerStanding {
   distance: number;
   finished: boolean;
   finishTime?: number;
+  finishOrder?: number; // Order in which racer finished (1st, 2nd, 3rd, etc.)
 }
 
-// Helper function to sort and assign ranks with tie handling (Dense Ranking)
+// Helper function to sort and assign ranks based on finish order
 const assignRanksWithTies = (racers: RacerStanding[]): (RacerStanding & { rank: number })[] => {
-  // Sort racers: 1. Finished first, 2. By finish time (asc), 3. By distance (asc)
+  // Sort racers: 1. Finished first, 2. By finish order (asc), 3. By distance (asc)
   const sortedRacers = racers.sort((a, b) => {
     if (a.finished && !b.finished) return -1;
     if (!a.finished && b.finished) return 1;
 
     if (a.finished && b.finished) {
-      // Sort by finish time (lower is better)
-      return (a.finishTime ?? Infinity) - (b.finishTime ?? Infinity);
+      // Sort by finish order (who crossed the line first)
+      return (a.finishOrder ?? Infinity) - (b.finishOrder ?? Infinity);
     }
 
     // Use distance for racing ships (lower distance is better)
@@ -169,8 +170,8 @@ const assignRanksWithTies = (racers: RacerStanding[]): (RacerStanding & { rank: 
 
       let isTie = false;
       if (currentRacer.finished && prevRacer.finished) {
-        // Tie based on finish time
-        isTie = (currentRacer.finishTime === prevRacer.finishTime);
+        // Tie based on finish order (should never happen as finish order is sequential)
+        isTie = (currentRacer.finishOrder === prevRacer.finishOrder);
       } else if (!currentRacer.finished && !prevRacer.finished) {
         // Tie based on distance (using a small tolerance)
         isTie = Math.abs(currentRacer.distance - prevRacer.distance) < 0.1;
@@ -194,9 +195,56 @@ type AIShipInternal = {
   color: string
   baseX: number
   z: number
+  prevZ: number // Track previous frame position for crossing detection
   speed: number
   finished: boolean
   finishTime?: number
+}
+
+/**
+ * Detect if a ship crossed the Neptune finish threshold between frames
+ * Uses interpolation to find exact crossing point
+ * @param prevZ - Ship's Z position in previous frame
+ * @param nextZ - Ship's calculated Z position for current frame
+ * @param shipX - Ship's X position
+ * @param neptunePos - Neptune's 3D position
+ * @param threshold - Finish detection threshold radius
+ * @returns Object with crossed flag and stopZ position
+ */
+function detectNeptuneCrossing(
+  prevZ: number,
+  nextZ: number,
+  shipX: number,
+  neptunePos: THREE.Vector3,
+  threshold: number
+): { crossed: boolean; stopZ: number } {
+  // Ship moving in negative Z direction
+  // Check if we crossed Neptune's Z coordinate
+  const neptuneCrossed = prevZ > neptunePos.z && nextZ <= neptunePos.z
+  
+  if (!neptuneCrossed) {
+    return { crossed: false, stopZ: nextZ }
+  }
+  
+  // Interpolate to find where ship enters finish zone
+  // Subdivide movement for accuracy
+  const totalDistance = prevZ - nextZ
+  const steps = 10 // 10 subdivisions provides good accuracy
+  
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps
+    const testZ = prevZ - (totalDistance * t)
+    const testPos = new THREE.Vector3(shipX, 0, testZ)
+    const distToNeptune = testPos.distanceTo(neptunePos)
+    
+    if (distToNeptune <= threshold) {
+      // Found entry point into finish zone
+      return { crossed: true, stopZ: testZ }
+    }
+  }
+  
+  // Fallback: stop at Neptune's Z coordinate
+  return { crossed: true, stopZ: neptunePos.z }
 }
 
 const AIManager = () => {
@@ -221,6 +269,9 @@ const AIManager = () => {
   const setAIRespawnPosition = useGameStore((s) => s.setAIRespawnPosition)
   const getAIRespawnPosition = useGameStore((s) => s.getAIRespawnPosition)
   const getAISizeConfig = useGameStore((s) => s.getAISizeConfig)
+
+  // Track finish order globally
+  const finishOrderMapRef = useRef<Map<number | 'player', number>>(new Map())
 
   const aiShipsData = useMemo(() => {
     const colors = [
@@ -285,6 +336,7 @@ const AIManager = () => {
         color: d.color,
         baseX: d.baseX,
         z: d.initialZ,
+        prevZ: d.initialZ, // Initialize prevZ same as z
         speed: 0, // Start at 0, will accelerate like player
         finished: false,
       }
@@ -304,11 +356,13 @@ const AIManager = () => {
           color: d.color,
           baseX: d.baseX,
           z: d.initialZ,
+          prevZ: d.initialZ, // Reset prevZ as well
           speed: 0,
           finished: false,
         }
       })
       finishOrderRef.current = []
+      finishOrderMapRef.current.clear() // Clear finish order map
       aiEndedRef.current = false
     }
   }, [aiShipsData, gameState, getAISizeConfig])
@@ -396,6 +450,17 @@ const AIManager = () => {
         }
       }
 
+      // No sway, no xOffset - ships stay in formation
+      const finalX = st.baseX
+      
+      // Store previous position BEFORE calculating movement
+      const prevZ = st.z
+      
+      // Calculate next position (don't apply yet)
+      let nextZ = st.z
+      let effectiveGameSpeed = 0
+      
+      // Only calculate movement if not finished
       if (gameState === 'playing' && isRaceStarted && !st.finished) {
         // Get AI size config for mass-based acceleration
         const sizeConfig = getAISizeConfig(st.id)
@@ -415,19 +480,53 @@ const AIManager = () => {
         
         // Apply speed reduction from damage
         const speedReduction = getAISpeedReduction(st.id)
-        const effectiveGameSpeed = st.speed * (1 - speedReduction)
+        effectiveGameSpeed = st.speed * (1 - speedReduction)
         
         // Convert game speed to actual movement speed (same as player)
         const effectiveSpeed = SOLAR_CONSTANTS.gameSpeedToUnitsPerSec(effectiveGameSpeed)
         
-        // Move forward toward finish (negative Z direction)
-        st.z -= effectiveSpeed * delta
+        // Calculate next Z position (don't apply yet)
+        nextZ = st.z - effectiveSpeed * delta
       }
-
-      // No sway, no xOffset - ships stay in formation
-      const finalX = st.baseX
       
-      // Check booster collision for AI ships (after finalX is calculated)
+      // Check for Neptune crossing using interpolation
+      const neptunePos = new THREE.Vector3(
+        PLANETARY_POSITIONS.neptune.x,
+        PLANETARY_POSITIONS.neptune.y,
+        PLANETARY_POSITIONS.neptune.z
+      )
+      
+      const crossing = detectNeptuneCrossing(
+        prevZ,
+        nextZ,
+        finalX,
+        neptunePos,
+        FINISH_NEPTUNE_THRESHOLD
+      )
+      
+      if (!st.finished && crossing.crossed) {
+        // Ship crossed finish threshold!
+        st.finished = true
+        st.finishTime = useGameStore.getState().raceTime
+        st.speed = 0
+        st.z = crossing.stopZ // Stop at threshold boundary
+        finishOrderRef.current.push(st.id)
+        
+        // Record finish order (1-based: 1st, 2nd, 3rd, etc.)
+        finishOrderMapRef.current.set(st.id, finishOrderRef.current.length)
+      } else if (!st.finished && gameState === 'playing' && isRaceStarted) {
+        // Normal movement - apply next position
+        st.z = nextZ
+      }
+      
+      // Update previous position for next frame
+      st.prevZ = st.z
+      
+      // Update distance for standings (calculate after position is finalized)
+      const currentAiPos = new THREE.Vector3(finalX, 0, st.z)
+      const distanceToNeptune = currentAiPos.distanceTo(neptunePos)
+      
+      // Check booster collision for AI ships
       if (gameState === 'playing' && isRaceStarted && !st.finished) {
         if (!aiBoosterCooldownRef.current[st.id]) {
           aiBoosterCooldownRef.current[st.id] = 0
@@ -460,6 +559,7 @@ const AIManager = () => {
           }
         }
       }
+      
 
       if (ref && ref.visible) {
         ref.position.set(finalX, 0, st.z)
@@ -528,25 +628,7 @@ const AIManager = () => {
         }
       }
 
-      // Finish detection: Neptune sphere collision (1000km from surface)
-      const neptunePos = new THREE.Vector3(
-        PLANETARY_POSITIONS.neptune.x,
-        PLANETARY_POSITIONS.neptune.y,
-        PLANETARY_POSITIONS.neptune.z
-      )
-      const aiPos = new THREE.Vector3(finalX, 0, st.z)
-      const distanceToNeptune = aiPos.distanceTo(neptunePos)
-      
-      if (!st.finished && distanceToNeptune <= FINISH_NEPTUNE_THRESHOLD) {
-        st.finished = true
-        st.finishTime = useGameStore.getState().raceTime
-        st.speed = 0 // Stop at finish
-        finishOrderRef.current.push(st.id)
-        
-        // AI ships can finish, but don't end the race
-        // The race only ends when the player finishes (handled in SpaceshipController)
-      }
-
+      // Update distance for standings
       const dist = st.finished ? 0 : distanceToNeptune
       standingsTemp.push({ id: st.id, name: st.name, distance: dist, finished: st.finished, finishTime: st.finishTime })
     }
@@ -566,12 +648,20 @@ const AIManager = () => {
 
     // --- Combined Ranking with Player and Tie Handling ---
     const playerRaceState = useGameStore.getState()
+    
+    // Check if player finished and record finish order
+    if (playerRaceState.finishTime && !finishOrderMapRef.current.has('player')) {
+      finishOrderRef.current.push(-1) // Use -1 as player marker in array
+      finishOrderMapRef.current.set('player', finishOrderRef.current.length)
+    }
+    
     const playerRacer: RacerStanding = {
       id: 'player',
       name: 'YOU', // Name matches Leaderboard component
       distance: playerRaceState.distanceToFinish,
       finished: !!playerRaceState.finishTime,
       finishTime: playerRaceState.finishTime ?? undefined,
+      finishOrder: finishOrderMapRef.current.get('player'),
     }
 
     // Convert AI data to RacerStanding interface
@@ -581,6 +671,7 @@ const AIManager = () => {
       distance: s.distance,
       finished: s.finished,
       finishTime: s.finishTime,
+      finishOrder: finishOrderMapRef.current.get(s.id),
     }));
 
     const allRacers = [playerRacer, ...aiRacers];
